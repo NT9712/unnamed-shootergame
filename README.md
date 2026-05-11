@@ -2,7 +2,7 @@
 
 A standalone WebGL campus-arena prototype with pointer-lock FPS controls, blue-vs-red bot teams, round scoring, a CS2-style buy phase, health/ammo/stamina HUD, minimap, hit markers, reloads, dash movement, pickups, and simple arena AI. The theme is a fictional after-school foam-marker competition, not a realistic school violence simulator.
 
-## Run
+## Run Locally
 
 Open `index.html` in a WebGL-capable browser.
 
@@ -32,13 +32,32 @@ Then open `http://localhost:5173`.
 
 No package install is required.
 
+## Deploy
+
+The project is static and deploys directly on Vercel from `main`.
+
+- Framework preset: Other
+- Install command: empty
+- Build command: empty
+- Output directory: `.`
+- Production branch: `main`
+
+The repository includes `vercel.json` and `.vercelignore` so Vercel serves the root static files without a build step.
+
 ## Menu And Settings
 
 The main menu includes Home, Buy Menu, Online, and Settings views. Settings are saved in the browser and are client-side only: keybinds, toggle sprint, toggle sneak, toggle aim, controls, video, HUD, crosshair, name tags, and visual effects. Match rules and gameplay stats are fixed in code.
 
 The buy menu is split into one rifle, one pistol, one melee item, and one utility item. Cash starts at $800, is earned from KOs and round payouts, and is spent during the round buy phase on temporary gear for that round.
 
-The Online view includes a static-host-friendly WebRTC data-channel link with manual offer/answer signaling, a saved display name, peer status, and remote player position/name-tag rendering. No server or install step is required for the peer link itself.
+The Online view uses a client-side peer link. It is WebRTC under the hood, but the UI is a simple code exchange:
+
+1. One player clicks `Create Code` and sends `Your Code` to a friend.
+2. The friend pastes it into `Friend Code` and clicks `Use Code`.
+3. The friend sends back their new `Your Code`.
+4. The first player pastes that reply into `Friend Code` and clicks `Use Code`.
+
+After connection, the game syncs display name, position, aim direction, active item, shot tracers, remote avatar, and remote name tag. No multiplayer server is required. NAT/firewall behavior can still block direct WebRTC links for some networks.
 
 ## Current Mechanics
 
@@ -46,15 +65,6 @@ Movement and combat now include reworked sprint stamina, crouching/sneaking, sli
 
 Ten strong next mechanics to consider: wall-running, mantle/climb, zip-lines, weapon attachments, objective capture zones, class abilities, deployable shields, radar pings, match economy, and round-end MVP cards.
 
-## Future Vercel Hosting
+## Notes
 
-This project is static, so Vercel can host it without a build step.
-
-Recommended setup:
-
-- Framework preset: Other
-- Build command: leave empty
-- Output directory: leave empty or use `.`
-- Install command: leave empty
-
-The included `vercel.json` keeps clean URLs enabled. Once assets are hashed by a build step, caching rules can be tightened.
+Deployment Protection on Vercel must be disabled if this should be publicly playable without a Vercel login or share link.
