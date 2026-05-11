@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>High School Simulator: American Edition</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <canvas id="gameCanvas" aria-label="High School Simulator American Edition arena"></canvas>
+
+    <div id="unsupported" class="unsupported" hidden>
+      <strong>WebGL is unavailable.</strong>
+      <span>This prototype needs a browser with WebGL enabled.</span>
+      <code id="webglDiagnostics"></code>
+    </div>
+
+    <div id="damageFlash" class="damage-flash"></div>
+
+    <div id="hud" class="hud" aria-live="polite">
+      <section class="scorebar">
+        <div class="team-pill player-team">
+          <span class="team-name">BLUE</span>
+          <strong id="playerScore">0</strong>
+        </div>
+        <div class="round-clock">
+          <span id="roundLabel">ROUND 1</span>
+          <strong id="roundTimer">03:00</strong>
+        </div>
+        <div class="team-pill rival-team">
+          <span class="team-name">RED</span>
+          <strong id="enemyScore">0</strong>
+        </div>
+      </section>
+
+      <div id="crosshair" class="crosshair" aria-hidden="true">
+        <i></i><i></i><i></i><i></i>
+        <b></b>
+      </div>
+
+      <section class="status-panel">
+        <div class="meter-label">
+          <span>HP</span>
+          <strong id="healthValue">100</strong>
+        </div>
+        <div class="meter health-meter"><span id="healthBar"></span></div>
+        <div class="meter-label armor-label">
+          <span>ARMOR</span>
+          <strong id="armorValue">25</strong>
+        </div>
+        <div class="meter armor-meter"><span id="armorBar"></span></div>
+        <div class="meter-label stamina-label">
+          <span>STAMINA</span>
+          <strong id="staminaValue">100</strong>
+        </div>
+        <div class="meter stamina-meter"><span id="staminaBar"></span></div>
+      </section>
+
+      <section class="weapon-panel">
+        <div class="weapon-name" id="weaponName">Varsity Marker</div>
+        <div class="ammo-readout">
+          <strong id="ammoCount">28</strong>
+          <span id="reserveCount">84</span>
+        </div>
+        <div class="reload-track"><span id="reloadBar"></span></div>
+        <div class="weapon-slots" id="weaponSlots"></div>
+      </section>
+
+      <section class="ability-panel">
+        <button id="dashButton" class="icon-button" type="button" title="Dash">>> </button>
+        <div class="cooldown-stack">
+          <div class="cooldown-ring">
+            <small>DASH</small>
+            <span id="dashCooldown">READY</span>
+          </div>
+          <div class="cooldown-ring">
+            <small>NADE</small>
+            <span id="grenadeCooldown">READY</span>
+          </div>
+          <div class="cooldown-ring">
+            <small>MELEE</small>
+            <span id="meleeCooldown">READY</span>
+          </div>
+        </div>
+      </section>
+
+      <canvas id="minimap" class="minimap" width="180" height="180" aria-label="Arena minimap"></canvas>
+
+      <section id="killFeed" class="kill-feed" aria-label="Feed"></section>
+    </div>
+
+    <div id="nameTags" class="name-tags" aria-hidden="true"></div>
+
+    <div id="menu" class="menu">
+      <div class="menu-panel">
+        <header class="menu-header">
+          <div class="brand-row">
+            <span class="brand-mark"></span>
+            <div>
+              <h1>High School Simulator</h1>
+              <p id="menuSubtitle">American Edition</p>
+            </div>
+          </div>
+          <nav class="menu-tabs" aria-label="Menu">
+            <button class="active" type="button" data-menu-view="home">Home</button>
+            <button type="button" data-menu-view="loadout">Buy Menu</button>
+            <button type="button" data-menu-view="online">Online</button>
+            <button type="button" data-menu-view="settings">Settings</button>
+          </nav>
+        </header>
+
+        <section class="menu-view active" id="homeView" data-view="home">
+          <div class="profile-bar">
+            <label class="name-field" for="playerNameInput">
+              <span>Name</span>
+              <input id="playerNameInput" type="text" maxlength="18" spellcheck="false" value="Player">
+            </label>
+            <div class="connection-chip" id="homeNetworkStatus">OFFLINE</div>
+          </div>
+          <div class="home-grid">
+            <div class="home-card mode-card">
+              <span class="card-kicker">Mode</span>
+              <strong>After-School Skirmish</strong>
+              <small id="matchSummary">Varsity blue vs rival red</small>
+            </div>
+            <div class="home-card">
+              <span class="card-kicker">Weapon</span>
+              <strong id="homeWeapon">Varsity Marker</strong>
+              <small>Selected loadout</small>
+            </div>
+            <div class="home-card">
+              <span class="card-kicker">Render</span>
+              <strong id="homeRenderMode">WebGL</strong>
+              <small id="homeFov">70 FOV</small>
+            </div>
+          </div>
+          <div class="menu-actions">
+            <button id="startButton" class="primary-button" type="button">Start Match</button>
+            <button class="secondary-button" type="button" data-open-view="loadout">Buy Menu</button>
+            <button class="secondary-button" type="button" data-open-view="online">Online</button>
+            <button class="secondary-button" type="button" data-open-view="settings">Settings</button>
+          </div>
+        </section>
+
+        <section class="menu-view" id="loadoutView" data-view="loadout">
+          <div class="loadout-toolbar">
+            <div class="cash-pill">
+              <span>CASH</span>
+              <strong id="cashValue">800</strong>
+            </div>
+            <small>Buy one rifle, pistol, melee, and utility item for the round.</small>
+          </div>
+          <div class="loadout-grid" id="loadoutGrid"></div>
+          <div class="menu-actions">
+            <button class="primary-button" type="button" data-open-view="home">Done</button>
+            <button id="resetButton" class="secondary-button" type="button">Reset Score</button>
+          </div>
+        </section>
+
+        <section class="menu-view" id="onlineView" data-view="online">
+          <div class="online-grid">
+            <section class="online-card">
+              <span class="card-kicker">Identity</span>
+              <label class="name-field stacked" for="onlineNameInput">
+                <span>Display Name</span>
+                <input id="onlineNameInput" type="text" maxlength="18" spellcheck="false" value="Player">
+              </label>
+              <div class="online-meta">
+                <span id="networkRole">LOCAL</span>
+                <strong id="networkStatus">OFFLINE</strong>
+              </div>
+              <div class="online-meta">
+                <span>PEERS</span>
+                <strong id="peerCount">0</strong>
+              </div>
+            </section>
+
+            <section class="online-card">
+              <span class="card-kicker">WebRTC</span>
+              <div class="online-actions">
+                <button id="hostOfferButton" class="primary-button compact" type="button">Host Offer</button>
+                <button id="joinOfferButton" class="secondary-button compact" type="button">Join Offer</button>
+                <button id="acceptAnswerButton" class="secondary-button compact" type="button">Accept Answer</button>
+                <button id="disconnectButton" class="secondary-button compact danger" type="button">Disconnect</button>
+              </div>
+            </section>
+
+            <label class="signal-box" for="localSignal">
+              <span>Local Signal</span>
+              <textarea id="localSignal" readonly spellcheck="false"></textarea>
+            </label>
+
+            <label class="signal-box" for="remoteSignal">
+              <span>Remote Signal</span>
+              <textarea id="remoteSignal" spellcheck="false"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="menu-view" id="settingsView" data-view="settings">
+          <div class="settings-toolbar">
+            <div class="settings-search">
+              <span>Settings</span>
+              <strong id="settingsCount">0</strong>
+            </div>
+            <button id="resetSettingsButton" class="secondary-button compact" type="button">Reset Settings</button>
+          </div>
+          <div id="settingsPanel" class="settings-panel"></div>
+        </section>
+      </div>
+    </div>
+
+    <div id="roundBanner" class="round-banner" hidden>
+      <strong id="roundBannerTitle">Round Won</strong>
+      <span id="roundBannerText">Resetting arena</span>
+    </div>
+
+    <script src="src/game.js?v=11"></script>
+  </body>
+</html>

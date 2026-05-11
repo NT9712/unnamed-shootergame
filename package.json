@@ -1,0 +1,10 @@
+{
+  "name": "high-school-simulator-american-edition",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone WebGL campus arena prototype.",
+  "scripts": {
+    "dev": "node tools/server.js",
+    "check": "node --check src/game.js"
+  }
+}
