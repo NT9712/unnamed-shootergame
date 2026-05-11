@@ -176,22 +176,22 @@
             </section>
 
             <section class="online-card">
-              <span class="card-kicker">WebRTC</span>
+              <span class="card-kicker">Peer Link</span>
               <div class="online-actions">
-                <button id="hostOfferButton" class="primary-button compact" type="button">Host Offer</button>
-                <button id="joinOfferButton" class="secondary-button compact" type="button">Join Offer</button>
-                <button id="acceptAnswerButton" class="secondary-button compact" type="button">Accept Answer</button>
+                <button id="hostOfferButton" class="primary-button compact" type="button">Create Code</button>
+                <button id="joinOfferButton" class="secondary-button compact" type="button">Use Code</button>
+                <button id="acceptAnswerButton" class="secondary-button compact" type="button">Copy Code</button>
                 <button id="disconnectButton" class="secondary-button compact danger" type="button">Disconnect</button>
               </div>
             </section>
 
             <label class="signal-box" for="localSignal">
-              <span>Local Signal</span>
+              <span>Your Code</span>
               <textarea id="localSignal" readonly spellcheck="false"></textarea>
             </label>
 
             <label class="signal-box" for="remoteSignal">
-              <span>Remote Signal</span>
+              <span>Friend Code</span>
               <textarea id="remoteSignal" spellcheck="false"></textarea>
             </label>
           </div>
@@ -215,6 +215,6 @@
       <span id="roundBannerText">Resetting arena</span>
     </div>
 
-    <script src="src/game.js?v=11"></script>
+    <script src="src/game.js?v=12"></script>
   </body>
 </html>
