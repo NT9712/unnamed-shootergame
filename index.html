@@ -104,6 +104,7 @@
           <nav class="menu-tabs" aria-label="Menu">
             <button class="active" type="button" data-menu-view="home">Home</button>
             <button type="button" data-menu-view="loadout">Buy Menu</button>
+            <button type="button" data-menu-view="locker">Locker</button>
             <button type="button" data-menu-view="online">Online</button>
             <button type="button" data-menu-view="settings">Settings</button>
           </nav>
@@ -137,6 +138,7 @@
           <div class="menu-actions">
             <button id="startButton" class="primary-button" type="button">Start Match</button>
             <button class="secondary-button" type="button" data-open-view="loadout">Buy Menu</button>
+            <button class="secondary-button" type="button" data-open-view="locker">Locker</button>
             <button class="secondary-button" type="button" data-open-view="online">Online</button>
             <button class="secondary-button" type="button" data-open-view="settings">Settings</button>
           </div>
@@ -157,6 +159,57 @@
           </div>
         </section>
 
+        <section class="menu-view" id="lockerView" data-view="locker">
+          <div class="locker-toolbar">
+            <div class="currency-pill">
+              <span>Campus Credits</span>
+              <strong id="lockerCredits">0</strong>
+            </div>
+            <small id="lockerPayout">Finish rounds to earn credits from KOs, KDR, and headshot rate.</small>
+          </div>
+          <div class="locker-grid">
+            <section class="locker-panel">
+              <div class="locker-heading">
+                <span class="card-kicker">Round Data</span>
+                <strong>Performance</strong>
+              </div>
+              <div class="stat-grid" id="lockerStats"></div>
+            </section>
+            <section class="locker-panel">
+              <div class="locker-heading">
+                <span class="card-kicker">Cases</span>
+                <strong>Skin Cases</strong>
+              </div>
+              <div class="case-grid" id="caseGrid"></div>
+            </section>
+            <section class="locker-panel wide">
+              <div class="locker-heading">
+                <span class="card-kicker">Inventory</span>
+                <strong>Weapon Skins</strong>
+              </div>
+              <div class="skin-grid" id="skinInventory"></div>
+            </section>
+            <section class="locker-panel wide">
+              <div class="locker-heading">
+                <span class="card-kicker">Local Entry</span>
+                <strong>Payment Entry</strong>
+              </div>
+              <div class="payment-entry">
+                <label>
+                  <span>Reference</span>
+                  <input id="paymentReference" type="text" maxlength="32" spellcheck="false" placeholder="Receipt or note">
+                </label>
+                <label>
+                  <span>Amount</span>
+                  <input id="paymentAmount" type="number" min="1" max="100" step="1" value="5">
+                </label>
+                <button id="paymentRecordButton" class="primary-button compact" type="button">Record Entry</button>
+              </div>
+              <div class="payment-log" id="paymentLog"></div>
+            </section>
+          </div>
+        </section>
+
         <section class="menu-view" id="onlineView" data-view="online">
           <div class="online-grid">
             <section class="online-card">
@@ -165,9 +218,17 @@
                 <span>Display Name</span>
                 <input id="onlineNameInput" type="text" maxlength="18" spellcheck="false" value="Player">
               </label>
+              <label class="name-field stacked" for="roomNameInput">
+                <span>Room Name</span>
+                <input id="roomNameInput" type="text" maxlength="24" spellcheck="false" value="After-School Room">
+              </label>
               <div class="online-meta">
                 <span id="networkRole">LOCAL</span>
                 <strong id="networkStatus">OFFLINE</strong>
+              </div>
+              <div class="online-meta">
+                <span>ROOM</span>
+                <strong id="roomIdValue">NONE</strong>
               </div>
               <div class="online-meta">
                 <span>PEERS</span>
@@ -176,23 +237,26 @@
             </section>
 
             <section class="online-card">
-              <span class="card-kicker">Peer Link</span>
-              <div class="online-actions">
-                <button id="hostOfferButton" class="primary-button compact" type="button">Create Code</button>
-                <button id="joinOfferButton" class="secondary-button compact" type="button">Use Code</button>
-                <button id="acceptAnswerButton" class="secondary-button compact" type="button">Copy Code</button>
+              <span class="card-kicker">Rooms</span>
+              <strong class="room-title">Quick Play</strong>
+              <small id="roomHint">Create a room code, send it to a friend, then paste their reply to connect.</small>
+              <div class="online-actions room-actions">
+                <button id="quickPlayButton" class="primary-button compact" type="button">Quick Play</button>
+                <button id="hostOfferButton" class="secondary-button compact" type="button">Create Room</button>
+                <button id="joinOfferButton" class="secondary-button compact" type="button">Join Room</button>
+                <button id="acceptAnswerButton" class="secondary-button compact" type="button">Copy Room Code</button>
                 <button id="disconnectButton" class="secondary-button compact danger" type="button">Disconnect</button>
               </div>
             </section>
 
             <label class="signal-box" for="localSignal">
-              <span>Your Code</span>
+              <span>Your Room Code</span>
               <textarea id="localSignal" readonly spellcheck="false"></textarea>
             </label>
 
             <label class="signal-box" for="remoteSignal">
-              <span>Friend Code</span>
-              <textarea id="remoteSignal" spellcheck="false"></textarea>
+              <span>Join Room Code</span>
+              <textarea id="remoteSignal" spellcheck="false" placeholder="Paste a room invite or reply code"></textarea>
             </label>
           </div>
         </section>
@@ -215,6 +279,7 @@
       <span id="roundBannerText">Resetting arena</span>
     </div>
 
+    <script src="src/skins.js?v=1"></script>
     <script src="src/game-loader.js?v=1"></script>
     <script src="src/peer-link.js?v=1"></script>
   </body>
