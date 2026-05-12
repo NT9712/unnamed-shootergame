@@ -46,18 +46,22 @@ The repository includes `vercel.json` and `.vercelignore` so Vercel serves the r
 
 ## Menu And Settings
 
-The main menu includes Home, Buy Menu, Online, and Settings views. Settings are saved in the browser and are client-side only: keybinds, toggle sprint, toggle sneak, toggle aim, controls, video, HUD, crosshair, name tags, and visual effects. Match rules and gameplay stats are fixed in code.
+The main menu includes Home, Buy Menu, Locker, Online, and Settings views. Settings are saved in the browser and are client-side only: keybinds, toggle sprint, toggle sneak, toggle aim, controls, video, HUD, crosshair, name tags, and visual effects. Match rules and gameplay stats are fixed in code.
 
 The buy menu is split into one rifle, one pistol, one melee item, and one utility item. Cash starts at $800, is earned from KOs and round payouts, and is spent during the round buy phase on temporary gear. Paid weapons are dropped on death, and ammo is reset on respawn.
 
-The Online view uses a client-side peer link. It is WebRTC under the hood, but the UI is a simple code exchange:
+The Locker is also client-side and persists in `localStorage`. It tracks round KOs, deaths, KDR, headshot percentage, backstabs, lifetime stats, and Campus Credits. Credits are earned after each round from the round data and can be spent on Freshman, Varsity, and Final Bell skin cases. Skins can be equipped per weapon and affect the rendered weapon/tracer color.
 
-1. One player clicks `Create Code` and sends `Your Code` to a friend.
-2. The friend pastes it into `Friend Code` and clicks `Use Code`.
-3. The friend sends back their new `Your Code`.
-4. The first player pastes that reply into `Friend Code` and clicks `Use Code`.
+The payment entry is a local prototype entry only. It records a reference and amount in the browser and grants local test credits. It is not connected to Stripe, Vercel functions, or any real payment processor.
 
-After connection, the game syncs display name, position, aim direction, active item, shot tracers, remote avatar, and remote name tag. No multiplayer server is required. NAT/firewall behavior can still block direct WebRTC links for some networks.
+The Online view uses client-side WebRTC rooms. It is still serverless, so room codes carry the WebRTC offer/reply data directly:
+
+1. One player clicks `Quick Play` or `Create Room` and sends `Your Room Code` to a friend.
+2. The friend pastes it into `Join Room Code` and clicks `Join Room`.
+3. The friend sends back their new `Your Room Code`.
+4. The first player pastes that reply into `Join Room Code` and clicks `Join Room`.
+
+After connection, the game syncs display name, position, aim direction, active item, shot tracers, remote avatar, and remote name tag. No multiplayer server is required. NAT/firewall behavior can still block direct WebRTC links for some networks. True random matchmaking would need a signaling service/API later; the current Quick Play creates a room invite locally.
 
 ## Current Mechanics
 
