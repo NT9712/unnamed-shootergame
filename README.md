@@ -54,14 +54,18 @@ The Locker is also client-side and persists in `localStorage`. It tracks round K
 
 The payment entry is a local prototype entry only. It records a reference and amount in the browser and grants local test credits. It is not connected to Stripe, Vercel functions, or any real payment processor.
 
-The Online view uses client-side WebRTC rooms. It is still serverless, so room codes carry the WebRTC offer/reply data directly:
+The Online view uses WebRTC rooms. On Vercel, `/api/rooms` acts as a lightweight signaling endpoint so Quick Play can find an open room, publish the host offer, and return the joiner's reply without manual copy/paste in the common case.
 
-1. One player clicks `Quick Play` or `Create Room` and sends `Your Room Code` to a friend.
-2. The friend pastes it into `Join Room Code` and clicks `Join Room`.
-3. The friend sends back their new `Your Room Code`.
-4. The first player pastes that reply into `Join Room Code` and clicks `Join Room`.
+The room server uses a limited pool of 16 active room codes. Each room supports 2 players, expires after 8 minutes of inactivity, and is removed from the pool when expired. The Online panel shows remaining room codes as `CODES LEFT`.
 
-After connection, the game syncs display name, position, aim direction, active item, shot tracers, remote avatar, and remote name tag. No multiplayer server is required. NAT/firewall behavior can still block direct WebRTC links for some networks. True random matchmaking would need a signaling service/API later; the current Quick Play creates a room invite locally.
+Manual code exchange still works as a fallback:
+
+1. One player clicks `Create Room` and sends `Your Room Code` or the room ID to a friend.
+2. The friend pastes the room ID/code into `Join Room ID Or Code` and clicks `Join Room`.
+3. If the API is unavailable, the friend sends back their new `Your Room Code`.
+4. The first player pastes that reply into `Join Room ID Or Code` and clicks `Join Room`.
+
+After connection, the game syncs display name, position, aim direction, active item, shot tracers, remote avatar, and remote name tag. The room API is signaling/lobby state only; game state still goes directly peer-to-peer. Vercel serverless memory is good enough for a prototype lobby, but production matchmaking should move the room store to Redis/Upstash and add a TURN relay for networks that block direct WebRTC.
 
 ## Current Mechanics
 
