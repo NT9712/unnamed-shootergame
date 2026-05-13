@@ -16,7 +16,7 @@
   }
 
   function patchGameSource(source) {
-    if (source.includes("AWP Marker") && source.includes("open-campus-ground")) return source;
+    if (source.includes("AWP Marker") && source.includes("open-campus-ground") && source.includes("getSkinColor") && source.includes("recordKill")) return source;
 
     const replaceOnce = (from, to) => {
       if (!source.includes(from)) {
@@ -27,6 +27,14 @@
     };
 
     replaceOnce("const WORLD_LIMIT = 25 * MAP_SCALE;", "const WORLD_LIMIT = 42 * MAP_SCALE;");
+    replaceOnce(
+      `  let settings = loadSettings();
+  let playerName = loadPlayerName();`,
+      `  let settings = loadSettings();
+  let playerName = loadPlayerName();
+  const skins = window.hssSkins;
+  if (skins && typeof skins.init === "function") skins.init();`
+    );
     replaceOnce(
       `const PICKUP_HEAL = 28;
   const PICKUP_RESPAWN = 10;
@@ -226,16 +234,88 @@
     );
 
     replaceOnce(
+      `      dropLoadoutOnDeath();
+      addFeed(source, "You");`,
+      `      dropLoadoutOnDeath();
+      if (skins && typeof skins.recordDeath === "function") skins.recordDeath({ source });
+      addFeed(source, "You");`
+    );
+
+    replaceOnce(
+      `    const labels = {
+      home: state.paused ? "Paused" : "Arena home",
+      loadout: "Round buy menu",
+      online: "Peer link",
+      settings: "Settings"
+    };`,
+      `    const labels = {
+      home: state.paused ? "Paused" : "Arena home",
+      loadout: "Round buy menu",
+      locker: "Locker",
+      online: "Peer link",
+      settings: "Settings"
+    };`
+    );
+
+    replaceOnce(
       `    const origin = add(getCameraPos(), [0, -0.05, 0]);
     const dir = spreadDirection(getForward(), weapon.spread * aimModifier);
     let bestT = weapon.range;`,
       `    const origin = add(getCameraPos(), [0, -0.05, 0]);
     const dir = spreadDirection(getForward(), weapon.spread * aimModifier);
     if (weapon.flame) {
-      fireFlame(weapon, origin, dir);
+      fireFlame({ ...weapon, color: weaponColor }, origin, dir);
       return;
     }
     let bestT = weapon.range;`
+    );
+
+    replaceOnce(
+      `    const weapon = weapons[state.activeWeapon];
+    const slot = ammo[state.activeWeapon];`,
+      `    const weapon = weapons[state.activeWeapon];
+    const weaponColor = skins && typeof skins.getSkinColor === "function" ? skins.getSkinColor(weapon.name, weapon.color) : weapon.color;
+    const slot = ammo[state.activeWeapon];`
+    );
+
+    replaceOnce(
+      `    addTracer(origin, hitPoint, weapon.color, 0.12);
+    sendNetworkFire(origin, hitPoint, weapon.color);`,
+      `    addTracer(origin, hitPoint, weaponColor, 0.12);
+    sendNetworkFire(origin, hitPoint, weaponColor);`
+    );
+
+    replaceOnce(
+      `      if (attackerName === "You") {
+        player.spree += 1;
+        awardCash(KO_CASH + (attacker && attacker.headshot ? HEADSHOT_CASH : 0) + (attacker && attacker.backstab ? BACKSTAB_CASH : 0), tag || "KO");
+      }`,
+      `      if (attackerName === "You") {
+        player.spree += 1;
+        if (skins && typeof skins.recordKill === "function") {
+          skins.recordKill({
+            weapon: attacker && attacker.weapon ? attacker.weapon : "Unknown",
+            headshot: Boolean(attacker && attacker.headshot),
+            backstab: Boolean(attacker && attacker.backstab)
+          });
+        }
+        awardCash(KO_CASH + (attacker && attacker.headshot ? HEADSHOT_CASH : 0) + (attacker && attacker.backstab ? BACKSTAB_CASH : 0), tag || "KO");
+      }`
+    );
+
+    replaceOnce(
+      `      damageBot(best.bot, backstab ? meleeWeapon.backstabDamage : meleeWeapon.damage, [best.bot.pos[0], 1.3, best.bot.pos[2]], { name: "You", team: "blue", type: "player", backstab });`,
+      `      damageBot(best.bot, backstab ? meleeWeapon.backstabDamage : meleeWeapon.damage, [best.bot.pos[0], 1.3, best.bot.pos[2]], { name: "You", team: "blue", type: "player", weapon: meleeWeapon.name, backstab });`
+    );
+
+    replaceOnce(
+      `    awardCash(playerWon ? WIN_CASH : LOSS_CASH, playerWon ? "Win payout" : "Loss payout");
+    if (document.pointerLockElement === canvas) document.exitPointerLock();`,
+      `    awardCash(playerWon ? WIN_CASH : LOSS_CASH, playerWon ? "Win payout" : "Loss payout");
+    if (skins && typeof skins.completeRound === "function") {
+      skins.completeRound({ won: playerWon, playerScore: state.playerScore, enemyScore: state.enemyScore });
+    }
+    if (document.pointerLockElement === canvas) document.exitPointerLock();`
     );
 
     replaceOnce(
@@ -468,6 +548,112 @@
   }`
     );
 
+    replaceOnce(
+      `  function updateBots(dt) {
+    activeBots().forEach((bot) => {
+      if (!bot.alive) {
+        bot.respawnTimer -= dt;
+        if (bot.respawnTimer <= 0) respawnBot(bot);
+        return;
+      }
+
+      bot.fireTimer = Math.max(0, bot.fireTimer - dt);
+      bot.retargetTimer -= dt;
+
+      const enemy = findBotTarget(bot);
+
+      if (enemy) {
+        const toEnemy = sub(enemy.pos, [bot.pos[0], EYE_HEIGHT, bot.pos[2]]);
+        bot.target = [enemy.pos[0] + Math.sin(performance.now() * 0.001 + bot.index) * 2.5, 0, enemy.pos[2]];
+        bot.yaw = Math.atan2(toEnemy[0], -toEnemy[2]);
+        if (bot.fireTimer <= 0) botFire(bot, enemy);
+      } else if (bot.retargetTimer <= 0 || distance2d(bot.pos, bot.target) < 1.5) {
+        bot.target = randomArenaPoint();
+        bot.retargetTimer = 1.2 + Math.random() * 2.4;
+      }
+
+      const toTarget = sub(bot.target, bot.pos);
+      const dist = Math.hypot(toTarget[0], toTarget[2]) || 1;
+      const moveX = (toTarget[0] / dist) * bot.baseSpeed;
+      const moveZ = (toTarget[2] / dist) * bot.baseSpeed;
+      bot.vel[0] += (moveX - bot.vel[0]) * Math.min(1, dt * 5);
+      bot.vel[2] += (moveZ - bot.vel[2]) * Math.min(1, dt * 5);
+      bot.pos[0] += bot.vel[0] * dt;
+      bot.pos[2] += bot.vel[2] * dt;
+      bot.pos[0] = clamp(bot.pos[0], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
+      bot.pos[2] = clamp(bot.pos[2], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
+      collideBot(bot);
+      updateBotJumpPads(bot);
+
+      if (!enemy && Math.hypot(bot.vel[0], bot.vel[2]) > 0.1) {
+        bot.yaw = Math.atan2(bot.vel[0], -bot.vel[2]);
+      }
+    });
+  }`,
+      `  function updateBots(dt) {
+    activeBots().forEach((bot) => {
+      if (!bot.alive) {
+        bot.respawnTimer -= dt;
+        if (bot.respawnTimer <= 0) respawnBot(bot);
+        return;
+      }
+
+      bot.fireTimer = Math.max(0, bot.fireTimer - dt);
+      bot.retargetTimer -= dt;
+      bot.strafeTimer -= dt;
+      if (bot.strafeTimer <= 0) {
+        bot.strafeTimer = 0.55 + Math.random() * 1.4;
+        bot.strafeDir = Math.random() < 0.5 ? -1 : 1;
+      }
+
+      const enemy = findBotTarget(bot);
+      const healPad = bot.health < bot.maxHealth * 0.42 ? nearestReadyPickup("heal", bot.pos) : null;
+
+      if (enemy) {
+        const toEnemy = sub(enemy.pos, [bot.pos[0], EYE_HEIGHT, bot.pos[2]]);
+        const flat = normalize([toEnemy[0], 0, toEnemy[2]]);
+        const side = [-flat[2], 0, flat[0]];
+        const desiredRange = bot.health < bot.maxHealth * 0.38 ? 42 : 18 + bot.aggression * 9;
+        const rangeError = clamp((enemy.distance - desiredRange) / 28, -1, 1);
+        const retreat = bot.health < bot.maxHealth * 0.28 ? -1 : 0;
+        const pressure = retreat || rangeError;
+        bot.target = [
+          bot.pos[0] + flat[0] * pressure * 9 + side[0] * bot.strafeDir * 8,
+          0,
+          bot.pos[2] + flat[2] * pressure * 9 + side[2] * bot.strafeDir * 8
+        ];
+        bot.yaw = Math.atan2(toEnemy[0], -toEnemy[2]);
+        if (healPad && bot.health < bot.maxHealth * 0.3) bot.target = [healPad.pos[0], 0, healPad.pos[2]];
+        if (bot.fireTimer <= 0 && hasLineOfSight([bot.pos[0], 1.35, bot.pos[2]], enemy.pos)) botFire(bot, enemy);
+      } else if (healPad) {
+        bot.target = [healPad.pos[0], 0, healPad.pos[2]];
+      } else if (bot.retargetTimer <= 0 || distance2d(bot.pos, bot.target) < 1.5) {
+        bot.target = randomArenaPoint();
+        bot.retargetTimer = 1.2 + Math.random() * 2.4;
+      }
+
+      const toTarget = sub(bot.target, bot.pos);
+      const dist = Math.hypot(toTarget[0], toTarget[2]) || 1;
+      const speedBoost = enemy && enemy.distance > 55 ? 1.25 : bot.health < bot.maxHealth * 0.32 ? 1.18 : 1;
+      const moveX = (toTarget[0] / dist) * bot.baseSpeed * speedBoost;
+      const moveZ = (toTarget[2] / dist) * bot.baseSpeed * speedBoost;
+      bot.vel[0] += (moveX - bot.vel[0]) * Math.min(1, dt * 6.4);
+      bot.vel[2] += (moveZ - bot.vel[2]) * Math.min(1, dt * 6.4);
+      bot.pos[0] += bot.vel[0] * dt;
+      bot.pos[2] += bot.vel[2] * dt;
+      bot.pos[0] = clamp(bot.pos[0], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
+      bot.pos[2] = clamp(bot.pos[2], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
+      collideBot(bot);
+      updateBotJumpPads(bot);
+      updateBotSpeedPads(bot);
+
+      if (!enemy && Math.hypot(bot.vel[0], bot.vel[2]) > 0.1) {
+        bot.yaw = Math.atan2(bot.vel[0], -bot.vel[2]);
+      }
+    });
+  }`
+    );
+
     replaceOnce(`        pos: player.pos`, `        pos: player.pos,
         vel: player.vel,
         health: player.health`);
@@ -507,6 +693,64 @@
     const barrelScale = state.activeSlot === "melee" ? [0.11, 0.09, 1.05] : state.activeSlot === "utility" ? [0.42, 0.18, 0.42] : [0.13, 0.13, 0.58];`,
       `    const bodyScale = state.activeSlot === "utility" ? [0.28, 0.24, 0.38] : equipped.flame ? [0.34, 0.24, 0.82] : equipped.name === "AWP Marker" ? [0.22, 0.16, 1.08] : [0.26, 0.18, 0.72];
     const barrelScale = state.activeSlot === "melee" ? [0.11, 0.09, 1.05] : state.activeSlot === "utility" ? [0.42, 0.18, 0.42] : equipped.flame ? [0.22, 0.22, 0.76] : equipped.name === "AWP Marker" ? [0.09, 0.09, 1.12] : [0.13, 0.13, 0.58];`
+    );
+
+    replaceOnce(
+      `    const itemColor = equipped.color || [0.8, 0.9, 1.0];`,
+      `    const itemColor = skins && typeof skins.getSkinColor === "function"
+      ? skins.getSkinColor(equipped.name, equipped.color || [0.8, 0.9, 1.0])
+      : equipped.color || [0.8, 0.9, 1.0];`
+    );
+
+    replaceOnce(
+      `    return items;
+  }
+
+  function campusDecals() {`,
+      `    [
+      { name: "north-class", z: -16.8, boardZ: -20.8, color: [0.12, 0.24, 0.29] },
+      { name: "south-class", z: 16.8, boardZ: 20.8, color: [0.27, 0.18, 0.24] }
+    ].forEach((room) => {
+      items.push(arenaBox(\`\${room.name}-divider-l\`, [-8.2, 1.25, room.z], [0.7, 2.5, 11.0], [0.2, 0.27, 0.31], true));
+      items.push(arenaBox(\`\${room.name}-divider-r\`, [8.2, 1.25, room.z], [0.7, 2.5, 11.0], [0.2, 0.27, 0.31], true));
+      items.push(arenaBox(\`\${room.name}-whiteboard\`, [0, 1.55, room.boardZ], [8.5, 1.45, 0.18], [0.9, 0.96, 0.9], false));
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 4; col++) {
+          const x = -5.4 + col * 3.6;
+          const z = room.z + (row - 1) * 2.15;
+          items.push(arenaBox(\`\${room.name}-desk-\${row}-\${col}\`, [x, 0.46, z], [1.8, 0.32, 1.1], [0.36, 0.29, 0.2], true));
+          items.push(arenaBox(\`\${room.name}-chair-\${row}-\${col}\`, [x, 0.36, z + (room.z < 0 ? 0.92 : -0.92)], [0.72, 0.72, 0.62], room.color, true));
+        }
+      }
+    });
+
+    [
+      [-35, -31, 8.5, 4.2], [-35, 31, 8.5, 4.2], [35, -31, 8.5, 4.2], [35, 31, 8.5, 4.2],
+      [-34, 0, 5.5, 13.0], [34, 0, 5.5, 13.0], [0, -36, 16.0, 4.2], [0, 36, 16.0, 4.2]
+    ].forEach(([x, z, sx, sz], index) => {
+      const color = index % 2 === 0 ? [0.16, 0.22, 0.2] : [0.18, 0.18, 0.24];
+      items.push(arenaBox(\`outdoor-cover-\${index}\`, [x, 0.85, z], [sx, 1.7, sz], color, true));
+    });
+
+    for (let i = 0; i < 10; i++) {
+      const x = -38 + i * 8.4;
+      items.push(arenaBox(\`courtyard-planter-n-\${i}\`, [x, 0.42, -31.5], [3.0, 0.84, 1.0], [0.15, 0.34, 0.22], true));
+      items.push(arenaBox(\`courtyard-planter-s-\${i}\`, [x, 0.42, 31.5], [3.0, 0.84, 1.0], [0.15, 0.34, 0.22], true));
+    }
+
+    return items;
+  }
+
+  function campusDecals() {`
+    );
+
+    replaceOnce(
+      `      arenaBox("library-zone", [18.0, 0.038, 8.0], [7.0, 0.05, 8.5], [0.24, 0.18, 0.34], false)`,
+      `      arenaBox("library-zone", [18.0, 0.038, 8.0], [7.0, 0.05, 8.5], [0.24, 0.18, 0.34], false),
+      arenaBox("north-courtyard-path", [0, 0.018, -33.5], [56.0, 0.05, 3.6], [0.24, 0.27, 0.25], false),
+      arenaBox("south-courtyard-path", [0, 0.018, 33.5], [56.0, 0.05, 3.6], [0.24, 0.27, 0.25], false),
+      arenaBox("west-courtyard-path", [-33.5, 0.019, 0], [3.6, 0.05, 56.0], [0.24, 0.27, 0.25], false),
+      arenaBox("east-courtyard-path", [33.5, 0.019, 0], [3.6, 0.05, 56.0], [0.24, 0.27, 0.25], false)`
     );
 
     return source;
