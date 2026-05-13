@@ -53,6 +53,7 @@
       roomNameInput: document.getElementById("roomNameInput"),
       roomIdValue: document.getElementById("roomIdValue"),
       roomHint: document.getElementById("roomHint"),
+      roomSlotsValue: document.getElementById("roomSlotsValue"),
       networkStatus: document.getElementById("networkStatus"),
       homeNetworkStatus: document.getElementById("homeNetworkStatus"),
       killFeed: document.getElementById("killFeed")
@@ -66,6 +67,9 @@
     let lastPublishedCode = "";
     let lastAppliedAnswer = "";
     let preserveNextHostRoom = false;
+    let publishInFlight = false;
+    let joinToken = "";
+    let serverStats = null;
 
     if (ui.quickPlayButton) {
       ui.quickPlayButton.addEventListener("click", async (event) => {
@@ -77,6 +81,7 @@
           const match = await findQuickRoom();
           if (match && match.offer) {
             activeRoom = normalizeRoom(match.room, "quick");
+            joinToken = match.joinToken || "";
             ui.remoteSignal.value = match.offer;
             addPeerNote(`Joining ${activeRoom.id}`);
             ui.joinOfferButton.click();
@@ -98,6 +103,7 @@
       }
       lastPublishedCode = "";
       lastAppliedAnswer = "";
+      joinToken = "";
       updateRoomUi();
       startCompactor();
     }, true);
@@ -130,6 +136,8 @@
 
     window.setInterval(syncButtons, 200);
     window.setInterval(updateStatusLabels, 200);
+    window.setInterval(refreshServerStats, 5000);
+    refreshServerStats();
 
     function startCompactor() {
       window.clearInterval(compactTimer);
@@ -175,11 +183,14 @@
 
     function updateRoomUi() {
       if (ui.roomIdValue) ui.roomIdValue.textContent = activeRoom ? activeRoom.id : "NONE";
+      if (ui.roomSlotsValue) ui.roomSlotsValue.textContent = serverStats ? `${serverStats.codesLeft}/${serverStats.maxRooms}` : "--";
       if (ui.roomHint) {
         ui.roomHint.textContent = activeRoom
           ? `${activeRoom.name} - ${activeRoom.mode === "quick" ? "Quick Play" : "Private Room"}`
           : apiAvailable()
-            ? "Quick Play finds an open room or creates one. Join Room accepts a room ID or a pasted code."
+            ? serverStats
+              ? `Server lobby: ${serverStats.activeRooms}/${serverStats.maxRooms} room codes used, ${serverStats.openRooms} open.`
+              : "Quick Play finds an open room or creates one. Join Room accepts a room ID or a pasted code."
             : "Create a room code, send it to a friend, then paste their reply to connect.";
       }
     }
@@ -232,9 +243,13 @@
       if (!apiAvailable()) return null;
       try {
         const data = await fetchRoomApi("?quick=1");
+        if (data && data.stats) {
+          serverStats = data.stats;
+          updateRoomUi();
+        }
         return data && data.offer ? data : null;
       } catch (error) {
-        addPeerNote("Room API unavailable");
+        addPeerNote(error && error.message === "No open quick rooms" ? "Creating new room" : "Room API unavailable");
         return null;
       }
     }
@@ -249,6 +264,8 @@
         const data = await fetchRoomApi(`?room=${encodeURIComponent(roomId)}`);
         if (!data || !data.offer) throw new Error("Room not found");
         activeRoom = normalizeRoom(data.room, "quick");
+        joinToken = data.joinToken || "";
+        if (data.stats) serverStats = data.stats;
         ui.remoteSignal.value = data.offer;
         updateRoomUi();
         addPeerNote(`Joining ${activeRoom.id}`);
@@ -259,7 +276,7 @@
     }
 
     async function publishCurrentCode() {
-      if (!apiAvailable() || !activeRoom) return;
+      if (!apiAvailable() || !activeRoom || publishInFlight) return;
       const code = ui.localSignal.value.trim();
       if (!code || code === lastPublishedCode) return;
       const signal = readFriendCode(code);
@@ -267,13 +284,21 @@
       const roomCode = code.startsWith(ROOM_CODE_PREFIX) ? code : writeRoomCode(signal, activeRoom);
 
       try {
-        await postRoomApi({
+        publishInFlight = true;
+        const data = await postRoomApi({
           action: signal.type,
           room: activeRoom,
           code: roomCode,
+          claimToken: joinToken,
           host: sanitizeRoomName(ui.roomNameInput && ui.roomNameInput.value)
         });
-        lastPublishedCode = roomCode;
+        if (data && data.room) {
+          activeRoom = normalizeRoom(data.room, activeRoom.mode);
+          ui.localSignal.value = writeRoomCode(signal, activeRoom);
+        }
+        if (data && data.stats) serverStats = data.stats;
+        lastPublishedCode = ui.localSignal.value.trim();
+        updateRoomUi();
         if (signal.type === "offer") {
           addPeerNote(`Room ${activeRoom.id} online`);
           startAnswerPolling();
@@ -281,7 +306,9 @@
           addPeerNote(`Reply sent for ${activeRoom.id}`);
         }
       } catch (error) {
-        addPeerNote("Manual code fallback active");
+        addPeerNote(error && error.message ? error.message : "Manual code fallback active");
+      } finally {
+        publishInFlight = false;
       }
     }
 
@@ -291,6 +318,10 @@
       pollTimer = window.setInterval(async () => {
         try {
           const data = await fetchRoomApi(`?room=${encodeURIComponent(activeRoom.id)}`);
+          if (data && data.stats) {
+            serverStats = data.stats;
+            updateRoomUi();
+          }
           if (!data || !data.answer || data.answer === lastAppliedAnswer) return;
           lastAppliedAnswer = data.answer;
           ui.remoteSignal.value = data.answer;
@@ -301,6 +332,19 @@
           // Poll failures are transient on serverless cold starts; the manual code remains visible.
         }
       }, API_POLL_MS);
+    }
+
+    async function refreshServerStats() {
+      if (!apiAvailable()) return;
+      try {
+        const data = await fetchRoomApi("?stats=1");
+        if (data && data.stats) {
+          serverStats = data.stats;
+          updateRoomUi();
+        }
+      } catch (error) {
+        // Capacity display is optional; connection codes still work without it.
+      }
     }
   }
 
