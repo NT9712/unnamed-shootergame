@@ -3,7 +3,21 @@
 
   const CODE_PREFIX = "HSS1.";
   const ROOM_CODE_PREFIX = "HSSR.";
+  const ROOM_API = "/api/rooms";
+  const API_POLL_MS = 1400;
+  const DEFAULT_ICE_SERVERS = [
+    {
+      urls: [
+        "stun:stun.l.google.com:19302",
+        "stun:stun1.l.google.com:19302",
+        "stun:stun2.l.google.com:19302",
+        "stun:stun3.l.google.com:19302",
+        "stun:stun4.l.google.com:19302"
+      ]
+    }
+  ];
 
+  installRtcConfigShim();
   boot();
 
   async function boot() {
@@ -47,33 +61,60 @@
     if (!ui.localSignal || !ui.remoteSignal || !ui.hostOfferButton || !ui.joinOfferButton || !ui.acceptAnswerButton) return;
 
     let compactTimer = 0;
+    let pollTimer = 0;
     let activeRoom = null;
+    let lastPublishedCode = "";
+    let lastAppliedAnswer = "";
+    let preserveNextHostRoom = false;
 
     if (ui.quickPlayButton) {
-      ui.quickPlayButton.addEventListener("click", (event) => {
+      ui.quickPlayButton.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopImmediatePropagation();
         if (ui.remoteSignal.value.trim()) {
           ui.joinOfferButton.click();
         } else {
-          activeRoom = createRoom("quick");
-          ui.hostOfferButton.click();
+          const match = await findQuickRoom();
+          if (match && match.offer) {
+            activeRoom = normalizeRoom(match.room, "quick");
+            ui.remoteSignal.value = match.offer;
+            addPeerNote(`Joining ${activeRoom.id}`);
+            ui.joinOfferButton.click();
+          } else {
+            activeRoom = createRoom("quick");
+            preserveNextHostRoom = true;
+            ui.hostOfferButton.click();
+          }
         }
         updateRoomUi();
       }, true);
     }
 
     ui.hostOfferButton.addEventListener("click", () => {
-      activeRoom = createRoom("custom");
+      if (preserveNextHostRoom && activeRoom) {
+        preserveNextHostRoom = false;
+      } else {
+        activeRoom = createRoom("custom");
+      }
+      lastPublishedCode = "";
+      lastAppliedAnswer = "";
       updateRoomUi();
       startCompactor();
     }, true);
 
-    ui.joinOfferButton.addEventListener("click", () => {
+    ui.joinOfferButton.addEventListener("click", async (event) => {
+      const roomId = readRoomId(ui.remoteSignal.value);
+      if (roomId) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        await joinRoomId(roomId);
+        return;
+      }
+
       const signal = readFriendCode(ui.remoteSignal.value);
       if (!signal) return;
 
-      if (signal.room) activeRoom = signal.room;
+      if (signal.room) activeRoom = normalizeRoom(signal.room, signal.type === "offer" ? "quick" : "custom");
       ui.remoteSignal.value = JSON.stringify({ type: signal.type, sdp: signal.sdp }, null, 2);
       if (signal.type === "offer") startCompactor();
       updateStatusLabels();
@@ -95,6 +136,7 @@
       const expiresAt = performance.now() + 4000;
       compactTimer = window.setInterval(() => {
         compactLocalCode();
+        publishCurrentCode();
         syncButtons();
         updateStatusLabels();
         if (performance.now() > expiresAt) window.clearInterval(compactTimer);
@@ -136,7 +178,9 @@
       if (ui.roomHint) {
         ui.roomHint.textContent = activeRoom
           ? `${activeRoom.name} - ${activeRoom.mode === "quick" ? "Quick Play" : "Private Room"}`
-          : "Create a room code, send it to a friend, then paste their reply to connect.";
+          : apiAvailable()
+            ? "Quick Play finds an open room or creates one. Join Room accepts a room ID or a pasted code."
+            : "Create a room code, send it to a friend, then paste their reply to connect.";
       }
     }
 
@@ -183,6 +227,81 @@
     function sanitizeRoomName(value) {
       return String(value || "After-School Room").replace(/[^\w .:-]/g, "").trim().slice(0, 24) || "After-School Room";
     }
+
+    async function findQuickRoom() {
+      if (!apiAvailable()) return null;
+      try {
+        const data = await fetchRoomApi("?quick=1");
+        return data && data.offer ? data : null;
+      } catch (error) {
+        addPeerNote("Room API unavailable");
+        return null;
+      }
+    }
+
+    async function joinRoomId(roomId) {
+      if (!apiAvailable()) {
+        addPeerNote("Paste a room code, not just the room ID");
+        return;
+      }
+
+      try {
+        const data = await fetchRoomApi(`?room=${encodeURIComponent(roomId)}`);
+        if (!data || !data.offer) throw new Error("Room not found");
+        activeRoom = normalizeRoom(data.room, "quick");
+        ui.remoteSignal.value = data.offer;
+        updateRoomUi();
+        addPeerNote(`Joining ${activeRoom.id}`);
+        ui.joinOfferButton.click();
+      } catch (error) {
+        addPeerNote(error && error.message ? error.message : "Could not join room");
+      }
+    }
+
+    async function publishCurrentCode() {
+      if (!apiAvailable() || !activeRoom) return;
+      const code = ui.localSignal.value.trim();
+      if (!code || code === lastPublishedCode) return;
+      const signal = readFriendCode(code);
+      if (!signal || (signal.type !== "offer" && signal.type !== "answer")) return;
+      const roomCode = code.startsWith(ROOM_CODE_PREFIX) ? code : writeRoomCode(signal, activeRoom);
+
+      try {
+        await postRoomApi({
+          action: signal.type,
+          room: activeRoom,
+          code: roomCode,
+          host: sanitizeRoomName(ui.roomNameInput && ui.roomNameInput.value)
+        });
+        lastPublishedCode = roomCode;
+        if (signal.type === "offer") {
+          addPeerNote(`Room ${activeRoom.id} online`);
+          startAnswerPolling();
+        } else {
+          addPeerNote(`Reply sent for ${activeRoom.id}`);
+        }
+      } catch (error) {
+        addPeerNote("Manual code fallback active");
+      }
+    }
+
+    function startAnswerPolling() {
+      window.clearInterval(pollTimer);
+      if (!activeRoom || !apiAvailable()) return;
+      pollTimer = window.setInterval(async () => {
+        try {
+          const data = await fetchRoomApi(`?room=${encodeURIComponent(activeRoom.id)}`);
+          if (!data || !data.answer || data.answer === lastAppliedAnswer) return;
+          lastAppliedAnswer = data.answer;
+          ui.remoteSignal.value = data.answer;
+          addPeerNote("Reply received");
+          ui.joinOfferButton.click();
+          window.clearInterval(pollTimer);
+        } catch (error) {
+          // Poll failures are transient on serverless cold starts; the manual code remains visible.
+        }
+      }, API_POLL_MS);
+    }
   }
 
   function readFriendCode(value) {
@@ -212,12 +331,118 @@
       v: 2,
       type: signal.type,
       sdp: signal.sdp,
-      room
+      room: normalizeRoom(room, "custom")
     })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`;
+  }
+
+  function readRoomId(value) {
+    const clean = String(value || "").trim().toUpperCase();
+    if (/^[A-Z0-9]{6,8}$/.test(clean) && !clean.startsWith("HSS")) return clean;
+    return "";
+  }
+
+  function normalizeRoom(room, fallbackMode) {
+    const raw = room && typeof room === "object" ? room : {};
+    return {
+      id: String(raw.id || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || createFallbackRoomId(),
+      name: String(raw.name || "After-School Room").replace(/[^\w .:-]/g, "").trim().slice(0, 24) || "After-School Room",
+      mode: raw.mode === "quick" || fallbackMode === "quick" ? "quick" : "custom"
+    };
+  }
+
+  function createFallbackRoomId() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let id = "";
+    for (let index = 0; index < 6; index++) id += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return id;
+  }
+
+  function apiAvailable() {
+    return window.location.protocol === "http:" || window.location.protocol === "https:";
+  }
+
+  async function fetchRoomApi(query) {
+    const response = await fetch(`${ROOM_API}${query}`, { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.error || "Room API failed");
+    return data;
+  }
+
+  async function postRoomApi(payload) {
+    const response = await fetch(ROOM_API, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.error || "Room API failed");
+    return data;
   }
 
   function padBase64(value) {
     return value.padEnd(Math.ceil(value.length / 4) * 4, "=");
+  }
+
+  function installRtcConfigShim() {
+    if (typeof RTCPeerConnection === "undefined" || RTCPeerConnection.__hssShim) return;
+    const NativePeerConnection = RTCPeerConnection;
+
+    function HssPeerConnection(config) {
+      const peer = new NativePeerConnection(mergeRtcConfig(config));
+      peer.addEventListener("icecandidateerror", (event) => {
+        window.dispatchEvent(new CustomEvent("hss-rtc-error", {
+          detail: {
+            url: event.url || "",
+            errorCode: event.errorCode || 0,
+            errorText: event.errorText || "ICE candidate error"
+          }
+        }));
+      });
+      return peer;
+    }
+
+    HssPeerConnection.prototype = NativePeerConnection.prototype;
+    Object.setPrototypeOf(HssPeerConnection, NativePeerConnection);
+    HssPeerConnection.__hssShim = true;
+    window.RTCPeerConnection = HssPeerConnection;
+
+    window.addEventListener("hss-rtc-error", (event) => {
+      const detail = event.detail || {};
+      const message = detail.errorText || `ICE error ${detail.errorCode || ""}`.trim();
+      const feed = document.getElementById("killFeed");
+      if (!feed) return;
+      const item = document.createElement("div");
+      item.innerHTML = `<strong>Network</strong><span>${escapeHtml(message)}</span>`;
+      feed.prepend(item);
+      window.setTimeout(() => item.remove(), 4500);
+    });
+  }
+
+  function mergeRtcConfig(config) {
+    const base = config && typeof config === "object" ? config : {};
+    const iceServers = [];
+    const seen = new Set();
+    [...DEFAULT_ICE_SERVERS, ...Array.isArray(base.iceServers) ? base.iceServers : []].forEach((server) => {
+      const key = JSON.stringify(server && server.urls ? server.urls : server);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      iceServers.push(server);
+    });
+    return {
+      ...base,
+      iceServers,
+      iceCandidatePoolSize: Math.max(Number(base.iceCandidatePoolSize) || 0, 4)
+    };
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    })[char]);
   }
 
   function injectRoomStyles() {
