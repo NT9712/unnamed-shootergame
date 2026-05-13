@@ -5,6 +5,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "127.0.0.1";
+const roomsApi = require("../api/rooms");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -20,6 +21,11 @@ const types = {
 
 const server = http.createServer((request, response) => {
   const parsed = new URL(request.url || "/", `http://${host}:${port}`);
+  if (parsed.pathname === "/api/rooms") {
+    roomsApi(request, response);
+    return;
+  }
+
   const cleanPath = decodeURIComponent(parsed.pathname);
   const relativePath = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
   const filePath = path.resolve(root, relativePath);
