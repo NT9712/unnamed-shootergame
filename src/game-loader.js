@@ -1,7 +1,7 @@
 (async function () {
   "use strict";
 
-  const GAME_URL = "src/game.js?v=12";
+  const GAME_URL = "src/game.js?v=14";
 
   try {
     const response = await fetch(GAME_URL, { cache: "no-store" });
@@ -16,743 +16,317 @@
   }
 
   function patchGameSource(source) {
-    if (source.includes("AWP Marker") && source.includes("open-campus-ground") && source.includes("getSkinColor") && source.includes("recordKill")) return source;
+    if (source.includes("front-building-shadow") && source.includes("requestPointerLockSafe")) return source;
 
-    const replaceOnce = (from, to) => {
-      if (!source.includes(from)) {
-        console.warn("Gameplay patch skipped missing source block:", from.slice(0, 80));
-        return;
-      }
-      source = source.replace(from, to);
+    const replace = (from, to) => {
+      if (source.includes(from)) source = source.replace(from, to);
+    };
+    const replacePattern = (pattern, to) => {
+      source = source.replace(pattern, to);
     };
 
-    replaceOnce("const WORLD_LIMIT = 25 * MAP_SCALE;", "const WORLD_LIMIT = 42 * MAP_SCALE;");
-    replaceOnce(
-      `  let settings = loadSettings();
-  let playerName = loadPlayerName();`,
-      `  let settings = loadSettings();
-  let playerName = loadPlayerName();
-  const skins = window.hssSkins;
-  if (skins && typeof skins.init === "function") skins.init();`
-    );
-    replaceOnce(
-      `const PICKUP_HEAL = 28;
-  const PICKUP_RESPAWN = 10;
-  const BOT_SIGHT_RANGE = 140;
-  const BOT_DAMAGE = 10;
-  const BOT_FIRE_MIN = 0.45;
-  const BOT_FIRE_SPREAD = 0.11;`,
-      `const PICKUP_HEAL = 28;
-  const PICKUP_AMMO_RATIO = 0.65;
-  const PICKUP_RESPAWN = 10;
-  const BOT_SIGHT_RANGE = 170;
-  const BOT_DAMAGE = 11;
-  const BOT_FIRE_MIN = 0.34;
-  const BOT_FIRE_SPREAD = 0.085;`
+    replace("const WORLD_LIMIT = 42 * MAP_SCALE;", "const WORLD_LIMIT = 64 * MAP_SCALE;");
+    replace("const WORLD_LIMIT = 25 * MAP_SCALE;", "const WORLD_LIMIT = 64 * MAP_SCALE;");
+    replace("const BOT_SIGHT_RANGE = 170;", "const BOT_SIGHT_RANGE = 210;");
+    replace("const BOT_SIGHT_RANGE = 140;", "const BOT_SIGHT_RANGE = 210;");
+    source = source.replaceAll("canvas.requestPointerLock();", "requestPointerLockSafe();");
+
+    replacePattern(/mat4Perspective\(projection, degToRad\(fov\), aspect, 0\.04, [0-9]+\);/, "mat4Perspective(projection, degToRad(fov), aspect, 0.04, 720);");
+    replacePattern(/gl\.uniform3fv\(uniforms\.lightDir, \[[^\]]+\]\);/, "gl.uniform3fv(uniforms.lightDir, [0.32, -0.88, 0.42]);");
+    replace(
+      `      0.42 * settings.brightness,
+      0.66 * settings.brightness,
+      0.88 * settings.brightness`,
+      `      0.58 * settings.brightness,
+      0.72 * settings.brightness,
+      0.88 * settings.brightness`
     );
 
-    replaceOnce(
-      `    {
-      name: "Honor Roll DMR",
-      short: "DMR",
-      category: "rifle",
-      damage: 39,
-      price: 1300,
-      description: "Accurate taps with strong head tags.",
-      fireRate: 3.6,
-      magazineSize: 14,
-      reserveSize: 56,
-      reloadTime: 1.4,
-      range: 190,
-      spread: 0.003,
-      recoil: 0.018,
-      automatic: false,
-      color: [0.34, 1.0, 0.78]
-    }
-  ];`,
-      `    {
-      name: "Honor Roll DMR",
-      short: "DMR",
-      category: "rifle",
-      damage: 39,
-      price: 1300,
-      description: "Accurate taps with strong head tags.",
-      fireRate: 3.6,
-      magazineSize: 14,
-      reserveSize: 56,
-      reloadTime: 1.4,
-      range: 190,
-      spread: 0.003,
-      recoil: 0.018,
-      automatic: false,
-      color: [0.34, 1.0, 0.78]
-    },
-    {
-      name: "AWP Marker",
-      short: "AWP",
-      category: "rifle",
-      damage: 112,
-      price: 4750,
-      description: "One-shot precision foam sniper. Slow, loud, expensive.",
-      fireRate: 0.72,
-      magazineSize: 5,
-      reserveSize: 20,
-      reloadTime: 2.6,
-      range: 260,
-      spread: 0.0018,
-      recoil: 0.052,
-      headshotMultiplier: 2.4,
-      automatic: false,
-      color: [0.72, 0.94, 1.0]
-    },
-    {
-      name: "Foam Flamethrower",
-      short: "FOAM",
-      category: "rifle",
-      damage: 8,
-      price: 3600,
-      description: "Short-range cone of pep-rally foam pressure.",
-      fireRate: 20,
-      magazineSize: 90,
-      reserveSize: 180,
-      reloadTime: 3.0,
-      range: 34,
-      spread: 0.07,
-      recoil: 0.003,
-      automatic: true,
-      flame: true,
-      color: [1.0, 0.55, 0.16]
-    }
-  ];`
+    replacePattern(
+      /  const playerSpawn = mapPoint\([\s\S]*?  const botRoster = \[/,
+      `  const playerSpawn = mapPoint(0, EYE_HEIGHT, 53);
+  const blueSpawnPoints = [
+    mapPoint(-34, EYE_HEIGHT, 53),
+    mapPoint(-16, EYE_HEIGHT, 56),
+    mapPoint(0, EYE_HEIGHT, 53),
+    mapPoint(16, EYE_HEIGHT, 56),
+    mapPoint(34, EYE_HEIGHT, 50)
+  ];
+  const redSpawnPoints = [
+    mapPoint(-34, EYE_HEIGHT, -53),
+    mapPoint(-16, EYE_HEIGHT, -56),
+    mapPoint(0, EYE_HEIGHT, -53),
+    mapPoint(16, EYE_HEIGHT, -56),
+    mapPoint(34, EYE_HEIGHT, -50)
+  ];
+
+  const botRoster = [`
     );
 
-    replaceOnce(
-      `  const pickups = [
-    { pos: mapPoint(-18, 0.55, 7), cooldown: 0 },
-    { pos: mapPoint(18, 0.55, -7), cooldown: 0 },
-    { pos: mapPoint(-6, 0.55, -12), cooldown: 0 },
-    { pos: mapPoint(6, 0.55, 12), cooldown: 0 },
-    { pos: mapPoint(0, 0.55, 0), cooldown: 0 }
-  ];`,
+    replacePattern(
+      /  const pickups = \[[\s\S]*?  const jumpPads = \[/,
       `  const pickups = [
     { type: "heal", pos: mapPoint(-18, 0.55, 7), cooldown: 0 },
     { type: "heal", pos: mapPoint(18, 0.55, -7), cooldown: 0 },
-    { type: "heal", pos: mapPoint(-35, 0.55, -31), cooldown: 0 },
-    { type: "heal", pos: mapPoint(35, 0.55, 31), cooldown: 0 },
+    { type: "heal", pos: mapPoint(-48, 0.55, -22), cooldown: 0 },
+    { type: "heal", pos: mapPoint(42, 0.55, 30), cooldown: 0 },
     { type: "ammo", pos: mapPoint(-6, 0.55, -12), cooldown: 0 },
     { type: "ammo", pos: mapPoint(6, 0.55, 12), cooldown: 0 },
-    { type: "ammo", pos: mapPoint(-35, 0.55, 31), cooldown: 0 },
-    { type: "ammo", pos: mapPoint(35, 0.55, -31), cooldown: 0 },
+    { type: "ammo", pos: mapPoint(-40, 0.55, 18), cooldown: 0 },
+    { type: "ammo", pos: mapPoint(42, 0.55, -36), cooldown: 0 },
     { type: "hybrid", pos: mapPoint(0, 0.55, 0), cooldown: 0 }
-  ];`
+  ];
+
+  const jumpPads = [`
     );
 
-    replaceOnce(
-      `  const solids = [
-    arenaBox("floor", [0, -0.08, 0], [52, 0.16, 52], [0.13, 0.16, 0.18], false),
-    arenaBox("north-wall", [0, 2.4, -26.2], [52, 4.8, 0.8], [0.22, 0.30, 0.35], true),
-    arenaBox("south-wall", [0, 2.4, 26.2], [52, 4.8, 0.8], [0.22, 0.30, 0.35], true),
-    arenaBox("west-wall", [-26.2, 2.4, 0], [0.8, 4.8, 52], [0.22, 0.30, 0.35], true),
-    arenaBox("east-wall", [26.2, 2.4, 0], [0.8, 4.8, 52], [0.22, 0.30, 0.35], true),`,
-      `  const solids = [
-    arenaBox("open-campus-ground", [0, -0.18, 0], [86, 0.12, 86], [0.11, 0.26, 0.22], false),
-    arenaBox("floor", [0, -0.08, 0], [52, 0.16, 52], [0.13, 0.16, 0.18], false),
-    arenaBox("north-wall-left", [-17.0, 2.4, -26.2], [18, 4.8, 0.8], [0.22, 0.30, 0.35], true),
-    arenaBox("north-wall-right", [17.0, 2.4, -26.2], [18, 4.8, 0.8], [0.22, 0.30, 0.35], true),
-    arenaBox("south-wall-left", [-17.0, 2.4, 26.2], [18, 4.8, 0.8], [0.22, 0.30, 0.35], true),
-    arenaBox("south-wall-right", [17.0, 2.4, 26.2], [18, 4.8, 0.8], [0.22, 0.30, 0.35], true),
-    arenaBox("west-wall-north", [-26.2, 2.4, -17.0], [0.8, 4.8, 18], [0.22, 0.30, 0.35], true),
-    arenaBox("west-wall-south", [-26.2, 2.4, 17.0], [0.8, 4.8, 18], [0.22, 0.30, 0.35], true),
-    arenaBox("east-wall-north", [26.2, 2.4, -17.0], [0.8, 4.8, 18], [0.22, 0.30, 0.35], true),
-    arenaBox("east-wall-south", [26.2, 2.4, 17.0], [0.8, 4.8, 18], [0.22, 0.30, 0.35], true),`
+    replacePattern(
+      /  const jumpPads = \[[\s\S]*?  const speedPads = \[/,
+      `  const jumpPads = [
+    { pos: mapPoint(-19, 0.08, 0), cooldown: 0 },
+    { pos: mapPoint(19, 0.08, 0), cooldown: 0 },
+    { pos: mapPoint(-43, 0.08, -3), cooldown: 0 },
+    { pos: mapPoint(44, 0.08, 24), cooldown: 0 }
+  ];
+
+  const speedPads = [`
     );
 
-    source = source.split(`    ammo.forEach((slot, index) => {
-      slot.magazine = weapons[index].magazineSize;
-      slot.reserve = weapons[index].reserveSize;
-      slot.reloadRemaining = 0;
-      slot.reloadTotal = 0;
-      slot.fireTimer = 0;
-    });`).join("    resetAllAmmo();");
+    replacePattern(
+      /  const speedPads = \[[\s\S]*?  const teleporters = \[/,
+      `  const speedPads = [
+    { pos: mapPoint(-11, 0.08, 11.5), dir: [1, 0, 0], cooldown: 0 },
+    { pos: mapPoint(11, 0.08, -11.5), dir: [-1, 0, 0], cooldown: 0 },
+    { pos: mapPoint(-36, 0.08, 34), dir: [1, 0, 0], cooldown: 0 },
+    { pos: mapPoint(36, 0.08, -34), dir: [-1, 0, 0], cooldown: 0 }
+  ];
 
-    replaceOnce(
-      `    ui.startButton.textContent = "Start Round";
-  }
-
-  function loop(time) {`,
-      `    ui.startButton.textContent = "Start Round";
-  }
-
-  function resetAllAmmo() {
-    ammo.forEach((slot, index) => resetWeaponAmmo(index));
-  }
-
-  function resetWeaponAmmo(index) {
-    const weapon = weapons[index];
-    const slot = ammo[index];
-    if (!weapon || !slot) return;
-    slot.magazine = weapon.magazineSize;
-    slot.reserve = weapon.reserveSize;
-    slot.reloadRemaining = 0;
-    slot.reloadTotal = 0;
-    slot.fireTimer = 0;
-  }
-
-  function refillEquippedAmmo(ratio) {
-    ["rifle", "pistol"].forEach((category) => {
-      const index = findWeaponIndex(state.loadout[category]);
-      const weapon = weapons[index];
-      const slot = ammo[index];
-      if (!weapon || !slot) return;
-      slot.magazine = weapon.magazineSize;
-      slot.reserve = Math.min(weapon.reserveSize, slot.reserve + Math.ceil(weapon.reserveSize * ratio));
-      slot.reloadRemaining = 0;
-      slot.reloadTotal = 0;
-    });
-  }
-
-  function dropLoadoutOnDeath() {
-    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
-    resetAllAmmo();
-    switchSlot("rifle");
-    buildLoadoutPanel();
-    updateMenuSummary();
-  }
-
-  function loop(time) {`
+  const teleporters = [`
     );
 
-    replaceOnce(
-      `      state.enemyScore += 1;
-      player.spree = 0;
-      addFeed(source, "You");`,
-      `      state.enemyScore += 1;
-      player.spree = 0;
-      dropLoadoutOnDeath();
-      addFeed(source, "You");
-      addFeed("Loadout", "Dropped on respawn");`
+    replacePattern(
+      /  const teleporters = \[[\s\S]*?  solids\.push\(\.\.\.campusSolids\(\)\);/,
+      `  const teleporters = [
+    { pos: mapPoint(-52, 0.2, 28), target: mapPoint(38, EYE_HEIGHT, -37), cooldown: 0, color: [0.42, 0.86, 1.0] },
+    { pos: mapPoint(38, 0.2, -37), target: mapPoint(-52, EYE_HEIGHT, 28), cooldown: 0, color: [1.0, 0.44, 0.72] }
+  ];
+
+  solids.push(...campusSolids(), ...realisticCampusSolids());`
     );
 
-    replaceOnce(
-      `      dropLoadoutOnDeath();
-      addFeed(source, "You");`,
-      `      dropLoadoutOnDeath();
-      if (skins && typeof skins.recordDeath === "function") skins.recordDeath({ source });
-      addFeed(source, "You");`
+    replace("  decals.push(...campusDecals());", "  decals.push(...campusDecals(), ...realisticCampusDecals());");
+    replace(
+      `    renderSkyBand(now);
+    solids.forEach(drawWorldBox);`,
+      `    renderSkyBand(now);
+    renderCampusGlow(now);
+    renderCampusDetails(now);
+    solids.forEach(drawWorldBox);`
     );
 
-    replaceOnce(
-      `    const labels = {
-      home: state.paused ? "Paused" : "Arena home",
-      loadout: "Round buy menu",
-      online: "Peer link",
-      settings: "Settings"
-    };`,
-      `    const labels = {
-      home: state.paused ? "Paused" : "Arena home",
-      loadout: "Round buy menu",
-      locker: "Locker",
-      online: "Peer link",
-      settings: "Settings"
-    };`
+    replacePattern(
+      /  function renderSkyBand\(now\) \{[\s\S]*?\n  \}\n\n  function renderPickups/,
+      `${realisticRenderFunctions()}
+
+  function renderPickups`
     );
 
-    replaceOnce(
-      `    const origin = add(getCameraPos(), [0, -0.05, 0]);
-    const dir = spreadDirection(getForward(), weapon.spread * aimModifier);
-    let bestT = weapon.range;`,
-      `    const origin = add(getCameraPos(), [0, -0.05, 0]);
-    const dir = spreadDirection(getForward(), weapon.spread * aimModifier);
-    if (weapon.flame) {
-      fireFlame({ ...weapon, color: weaponColor }, origin, dir);
-      return;
+    replace(
+      `      const color = isHybrid ? [0.95, 0.78, 0.26] : isAmmo ? [0.28, 0.74, 1.0] : [0.3, 1.0, 0.48];`,
+      `      const color = isHybrid ? [0.88, 0.66, 0.24] : isAmmo ? [0.18, 0.42, 0.58] : [0.22, 0.50, 0.28];`
+    );
+
+    if (!source.includes("function requestPointerLockSafe()")) {
+      replace(
+        `  function resetMatch() {`,
+        `  function requestPointerLockSafe() {
+    try {
+      const request = canvas.requestPointerLock();
+      if (request && typeof request.catch === "function") request.catch(() => {});
+    } catch (error) {
+      // Some embedded browsers reject pointer lock; controls still work after a normal browser click.
     }
-    let bestT = weapon.range;`
-    );
+  }
 
-    replaceOnce(
-      `    const weapon = weapons[state.activeWeapon];
-    const slot = ammo[state.activeWeapon];`,
-      `    const weapon = weapons[state.activeWeapon];
-    const weaponColor = skins && typeof skins.getSkinColor === "function" ? skins.getSkinColor(weapon.name, weapon.color) : weapon.color;
-    const slot = ammo[state.activeWeapon];`
-    );
-
-    replaceOnce(
-      `    addTracer(origin, hitPoint, weapon.color, 0.12);
-    sendNetworkFire(origin, hitPoint, weapon.color);`,
-      `    addTracer(origin, hitPoint, weaponColor, 0.12);
-    sendNetworkFire(origin, hitPoint, weaponColor);`
-    );
-
-    replaceOnce(
-      `      if (attackerName === "You") {
-        player.spree += 1;
-        awardCash(KO_CASH + (attacker && attacker.headshot ? HEADSHOT_CASH : 0) + (attacker && attacker.backstab ? BACKSTAB_CASH : 0), tag || "KO");
-      }`,
-      `      if (attackerName === "You") {
-        player.spree += 1;
-        if (skins && typeof skins.recordKill === "function") {
-          skins.recordKill({
-            weapon: attacker && attacker.weapon ? attacker.weapon : "Unknown",
-            headshot: Boolean(attacker && attacker.headshot),
-            backstab: Boolean(attacker && attacker.backstab)
-          });
-        }
-        awardCash(KO_CASH + (attacker && attacker.headshot ? HEADSHOT_CASH : 0) + (attacker && attacker.backstab ? BACKSTAB_CASH : 0), tag || "KO");
-      }`
-    );
-
-    replaceOnce(
-      `      damageBot(best.bot, backstab ? meleeWeapon.backstabDamage : meleeWeapon.damage, [best.bot.pos[0], 1.3, best.bot.pos[2]], { name: "You", team: "blue", type: "player", backstab });`,
-      `      damageBot(best.bot, backstab ? meleeWeapon.backstabDamage : meleeWeapon.damage, [best.bot.pos[0], 1.3, best.bot.pos[2]], { name: "You", team: "blue", type: "player", weapon: meleeWeapon.name, backstab });`
-    );
-
-    replaceOnce(
-      `    awardCash(playerWon ? WIN_CASH : LOSS_CASH, playerWon ? "Win payout" : "Loss payout");
-    if (document.pointerLockElement === canvas) document.exitPointerLock();`,
-      `    awardCash(playerWon ? WIN_CASH : LOSS_CASH, playerWon ? "Win payout" : "Loss payout");
-    if (skins && typeof skins.completeRound === "function") {
-      skins.completeRound({ won: playerWon, playerScore: state.playerScore, enemyScore: state.enemyScore });
+  function resetMatch() {`
+      );
     }
-    if (document.pointerLockElement === canvas) document.exitPointerLock();`
-    );
 
-    replaceOnce(
-      `  function reload() {`,
-      `  function fireFlame(weapon, origin, dir) {
-    const centerEnd = add(origin, scale(dir, weapon.range));
-    for (let i = 0; i < 4; i++) {
-      const flameDir = spreadDirectionFromBasis(dir, weapon.spread * 2.4);
-      const reach = weapon.range * (0.68 + Math.random() * 0.32);
-      addTracer(origin, add(origin, scale(flameDir, reach)), scaleColor(weapon.color, 0.85 + Math.random() * 0.22), 0.08);
+    if (!source.includes("function realisticCampusSolids()")) {
+      replace("  function solidMin(solid) {", `${realisticCampusFunctions()}\n\n  function solidMin(solid) {`);
     }
-    sendNetworkFire(origin, centerEnd, weapon.color);
 
-    activeBots().forEach((bot) => {
-      if (!bot.alive || bot.team === "blue") return;
-      const target = [bot.pos[0], 1.25, bot.pos[2]];
-      const toBot = sub(target, origin);
-      const distance = length(toBot);
-      if (distance > weapon.range) return;
-      const alignment = dot(normalize(toBot), dir);
-      if (alignment < 0.76) return;
-      if (!hasLineOfSight(origin, target)) return;
-      const heat = clamp((alignment - 0.76) / 0.24, 0, 1);
-      const falloff = 1 - distance / weapon.range * 0.45;
-      damageBot(bot, Math.max(2, Math.round(weapon.damage * (0.75 + heat) * falloff)), target, { name: "You", team: "blue", type: "player", weapon: weapon.name });
+    return source;
+  }
+
+  function realisticRenderFunctions() {
+    return `  function renderSkyBand(now) {
+    const drift = now * 0.018;
+    drawBox(mapPoint(0, 18, -64.0), [132 * MAP_SCALE, 34, 0.1 * MAP_SCALE], [0.54, 0.70, 0.87], 0);
+    drawBox(mapPoint(-64.0, 18, 0), [0.1 * MAP_SCALE, 34, 132 * MAP_SCALE], [0.50, 0.67, 0.84], 0);
+    drawBox(mapPoint(64.0, 18, 0), [0.1 * MAP_SCALE, 34, 132 * MAP_SCALE], [0.58, 0.70, 0.84], 0);
+    drawBox(mapPoint(0, 18, 64.0), [132 * MAP_SCALE, 34, 0.1 * MAP_SCALE], [0.62, 0.72, 0.83], 0);
+    drawBox(mapPoint(-45, 17.5, -63.7), [5.8 * MAP_SCALE, 5.8, 0.12 * MAP_SCALE], [1.0, 0.78, 0.42], now * 0.03);
+    [-54, -38, -19, 8, 31, 53].forEach((x, index) => {
+      const y = 20.5 + Math.sin(now * 0.08 + index) * 0.24;
+      drawBox(mapPoint(x + Math.sin(drift + index) * 1.5, y, -63.5), [(8 + index % 3 * 3) * MAP_SCALE, 0.8, 0.1 * MAP_SCALE], [0.78, 0.84, 0.89], 0);
+      drawBox(mapPoint(x + 4 + Math.sin(drift * 1.4 + index) * 1.2, y + 0.8, -63.4), [(5 + index % 2 * 2) * MAP_SCALE, 0.65, 0.1 * MAP_SCALE], [0.84, 0.88, 0.92], 0);
+    });
+    [-61, -47, -33, -18, -2, 14, 29, 43, 58].forEach((x, index) => {
+      const height = 3.0 + (index % 4) * 0.75;
+      drawBox(mapPoint(x, height * 0.5, -61.5), [3.6 * MAP_SCALE, height, 0.6 * MAP_SCALE], [0.08, 0.19 + index % 3 * 0.025, 0.11], 0);
+      drawBox(mapPoint(x + 2.1, height * 0.42, 61.5), [3.2 * MAP_SCALE, height * 0.84, 0.6 * MAP_SCALE], [0.07, 0.18 + index % 4 * 0.02, 0.10], 0);
     });
   }
 
-  function reload() {`
-    );
-
-    replaceOnce(
-      `  function updatePickups(dt) {
-    pickups.forEach((pickup) => {
-      pickup.cooldown = Math.max(0, pickup.cooldown - dt);
-      if (pickup.cooldown > 0 || player.dead) return;
-      if (distance2d(player.pos, pickup.pos) < 1.2 && player.health < PLAYER_MAX_HEALTH) {
-        const healAmount = PICKUP_HEAL;
-        player.health = Math.min(PLAYER_MAX_HEALTH, player.health + healAmount);
-        player.armor = Math.min(Math.max(PLAYER_MAX_ARMOR, 50), player.armor + 8);
-        pickup.cooldown = PICKUP_RESPAWN;
-        addFeed("Pickup", \`+\${healAmount} HP\`);
-      }
-    });
-  }`,
-      `  function updatePickups(dt) {
-    pickups.forEach((pickup) => {
-      pickup.cooldown = Math.max(0, pickup.cooldown - dt);
-      if (pickup.cooldown > 0 || player.dead) return;
-      if (distance2d(player.pos, pickup.pos) < 1.35) {
-        const needsHealth = pickup.type !== "ammo" && player.health < PLAYER_MAX_HEALTH;
-        const needsAmmo = pickup.type !== "heal" && equippedAmmoNeedsRefill();
-        if (!needsHealth && !needsAmmo) return;
-        if (needsHealth) {
-          const healAmount = PICKUP_HEAL;
-          player.health = Math.min(PLAYER_MAX_HEALTH, player.health + healAmount);
-          player.armor = Math.min(Math.max(PLAYER_MAX_ARMOR, 50), player.armor + 8);
-          addFeed("Heal Pad", \`+\${healAmount} HP\`);
-        }
-        if (needsAmmo) {
-          refillEquippedAmmo(PICKUP_AMMO_RATIO);
-          addFeed("Ammo Pad", "Refilled");
-        }
-        pickup.cooldown = PICKUP_RESPAWN;
-      }
-
-      activeBots().forEach((bot) => {
-        if (!bot.alive || pickup.type === "ammo" || pickup.cooldown > 0) return;
-        if (distance2d(bot.pos, pickup.pos) < 1.45 && bot.health < bot.maxHealth) {
-          bot.health = Math.min(bot.maxHealth, bot.health + PICKUP_HEAL);
-          pickup.cooldown = PICKUP_RESPAWN;
-        }
-      });
-    });
-  }
-
-  function equippedAmmoNeedsRefill() {
-    return ["rifle", "pistol"].some((category) => {
-      const index = findWeaponIndex(state.loadout[category]);
-      const weapon = weapons[index];
-      const slot = ammo[index];
-      return weapon && slot && (slot.magazine < weapon.magazineSize || slot.reserve < weapon.reserveSize);
-    });
-  }
-
-  function nearestReadyPickup(type, pos) {
-    let best = null;
-    pickups.forEach((pickup) => {
-      if (pickup.cooldown > 0) return;
-      if (type === "heal" && pickup.type === "ammo") return;
-      if (type === "ammo" && pickup.type === "heal") return;
-      const distance = distance2d(pos, pickup.pos);
-      if (!best || distance < best.distance) best = { pickup, distance };
-    });
-    return best ? best.pickup : null;
-  }`
-    );
-
-    replaceOnce(`  gl.clearColor(0.035, 0.052, 0.06, 1);`, `  gl.clearColor(0.42, 0.66, 0.88, 1);`);
-    replaceOnce(
-      `    const bg = 0.035 * settings.brightness;
-    gl.clearColor(bg, 0.052 * settings.brightness, 0.06 * settings.brightness, 1);`,
-      `    const sky = [
-      0.42 * settings.brightness,
-      0.66 * settings.brightness,
-      0.88 * settings.brightness
-    ];
-    gl.clearColor(sky[0], sky[1], sky[2], 1);`
-    );
-    replaceOnce(
-      `    gl.uniform3fv(uniforms.fogColor, [0.035 * settings.brightness, 0.052 * settings.brightness, 0.06 * settings.brightness]);`,
-      `    gl.uniform3fv(uniforms.fogColor, sky);`
-    );
-
-    replaceOnce(
-      `  function renderSkyBand(now) {
+  function renderCampusGlow(now) {
     if (!settings.arenaGlow) return;
-    const pulse = 0.5 + Math.sin(now * 0.8) * 0.5;
-    drawBox(mapPoint(0, 8, -27.0), [36 * MAP_SCALE, 8, 0.1 * MAP_SCALE], [0.03 + pulse * 0.015, 0.14, 0.18], 0);
-    drawBox(mapPoint(-27.0, 8, 0), [0.1 * MAP_SCALE, 8, 36 * MAP_SCALE], [0.04, 0.11 + pulse * 0.02, 0.14], 0);
-    drawBox(mapPoint(27.0, 8, 0), [0.1 * MAP_SCALE, 8, 36 * MAP_SCALE], [0.11 + pulse * 0.03, 0.08, 0.09], 0);
-  }`,
-      `  function renderSkyBand(now) {
-    const pulse = settings.arenaGlow ? 0.5 + Math.sin(now * 0.8) * 0.5 : 0.45;
-    drawBox(mapPoint(0, 10, -42.0), [88 * MAP_SCALE, 18, 0.1 * MAP_SCALE], [0.34 + pulse * 0.03, 0.58, 0.84], 0);
-    drawBox(mapPoint(-42.0, 10, 0), [0.1 * MAP_SCALE, 18, 88 * MAP_SCALE], [0.32, 0.56 + pulse * 0.03, 0.78], 0);
-    drawBox(mapPoint(42.0, 10, 0), [0.1 * MAP_SCALE, 18, 88 * MAP_SCALE], [0.46 + pulse * 0.04, 0.58, 0.76], 0);
-    drawBox(mapPoint(0, 10, 42.0), [88 * MAP_SCALE, 18, 0.1 * MAP_SCALE], [0.50, 0.62 + pulse * 0.03, 0.76], 0);
-    drawBox(mapPoint(-31, 16, -35), [4.5 * MAP_SCALE, 4.5, 0.1 * MAP_SCALE], [1.0, 0.78, 0.28], now * 0.05);
-  }`
-    );
-
-    replaceOnce(
-      `  function renderPickups(now) {
-    pickups.forEach((pickup, index) => {
-      if (pickup.cooldown > 0) return;
-      const bob = Math.sin(now * 3 + index) * 0.12;
-      drawBox([pickup.pos[0], pickup.pos[1] + bob, pickup.pos[2]], [0.9, 0.28, 0.9], [0.3, 1.0, 0.48], now * 1.4);
-      drawBox([pickup.pos[0], pickup.pos[1] + bob + 0.02, pickup.pos[2]], [0.28, 0.9, 0.28], [0.3, 1.0, 0.48], now * 1.4);
+    const pulse = 0.86 + Math.sin(now * 1.1) * 0.06;
+    [-22, -15, -8, 8, 15, 22].forEach((x, index) => {
+      const lit = index % 3 !== Math.floor(now * 0.28) % 3;
+      const warm = lit ? [0.96 * pulse, 0.72 * pulse, 0.44 * pulse] : [0.14, 0.16, 0.17];
+      drawBox(mapPoint(x, 3.25, -25.78), [2.3 * MAP_SCALE, 0.62, 0.08 * MAP_SCALE], warm, 0);
+      drawBox(mapPoint(x, 3.25, 25.78), [2.3 * MAP_SCALE, 0.62, 0.08 * MAP_SCALE], warm, 0);
     });
-  }`,
-      `  function renderPickups(now) {
-    pickups.forEach((pickup, index) => {
-      if (pickup.cooldown > 0) return;
-      const bob = Math.sin(now * 3 + index) * 0.12;
-      const isAmmo = pickup.type === "ammo";
-      const isHybrid = pickup.type === "hybrid";
-      const color = isHybrid ? [0.95, 0.78, 0.26] : isAmmo ? [0.28, 0.74, 1.0] : [0.3, 1.0, 0.48];
-      drawBox([pickup.pos[0], pickup.pos[1] + bob, pickup.pos[2]], [1.05, 0.26, 1.05], color, now * 1.4);
-      if (isAmmo) {
-        drawBox([pickup.pos[0] - 0.34, pickup.pos[1] + bob + 0.12, pickup.pos[2]], [0.24, 0.78, 0.24], [0.9, 0.96, 1.0], now);
-        drawBox([pickup.pos[0] + 0.34, pickup.pos[1] + bob + 0.12, pickup.pos[2]], [0.24, 0.78, 0.24], [0.9, 0.96, 1.0], now);
-      } else {
-        drawBox([pickup.pos[0], pickup.pos[1] + bob + 0.02, pickup.pos[2]], [0.28, 0.9, 0.28], color, now * 1.4);
-      }
-    });
-  }`
-    );
-
-    replaceOnce(
-      `    pickups.forEach((pickup) => {
-      if (pickup.cooldown > 0) return;
-      drawMiniDot(pickup.pos[0], pickup.pos[2], "#95f56d", 3);
-    });`,
-      `    pickups.forEach((pickup) => {
-      if (pickup.cooldown > 0) return;
-      const color = pickup.type === "ammo" ? "#5cc8ff" : pickup.type === "hybrid" ? "#f2d355" : "#95f56d";
-      drawMiniDot(pickup.pos[0], pickup.pos[2], color, 3);
-    });`
-    );
-
-    replaceOnce(
-      `      respawnTimer: 0,
-      retargetTimer: 0,
-      fireTimer: 0,`,
-      `      respawnTimer: 0,
-      retargetTimer: 0,
-      strafeTimer: 0,
-      strafeDir: Math.random() < 0.5 ? -1 : 1,
-      aimSkill: 0.82 + Math.random() * 0.42,
-      aggression: 0.75 + Math.random() * 0.55,
-      fireTimer: 0,`
-    );
-    source = source.replaceAll(
-      `    bot.retargetTimer = Math.random() * 2;
-    bot.fireTimer = 0.8 + Math.random();`,
-      `    bot.retargetTimer = Math.random() * 2;
-    bot.strafeTimer = 0.3 + Math.random() * 1.1;
-    bot.strafeDir = Math.random() < 0.5 ? -1 : 1;
-    bot.fireTimer = 0.8 + Math.random();`
-    );
-    replaceOnce(
-      `    bot.health = bot.maxHealth;
-    bot.alive = true;
-    bot.fireTimer = 0.9 + Math.random();`,
-      `    bot.health = bot.maxHealth;
-    bot.alive = true;
-    bot.strafeTimer = 0.3 + Math.random() * 1.1;
-    bot.strafeDir = Math.random() < 0.5 ? -1 : 1;
-    bot.fireTimer = 0.9 + Math.random();`
-    );
-
-    replaceOnce(
-      `  function updateBotJumpPads(bot) {
-    jumpPads.forEach((pad) => {
-      if (distance2d(bot.pos, pad.pos) < 2.8 && Math.random() < 0.018) {
-        const away = normalize([bot.pos[0] - pad.pos[0], 0, bot.pos[2] - pad.pos[2]]);
-        bot.vel[0] += away[0] * 5;
-        bot.vel[2] += away[2] * 5;
-      }
-    });
-  }`,
-      `  function updateBotJumpPads(bot) {
-    jumpPads.forEach((pad) => {
-      if (distance2d(bot.pos, pad.pos) < 2.8 && Math.random() < 0.045) {
-        const away = normalize([bot.pos[0] - pad.pos[0], 0, bot.pos[2] - pad.pos[2]]);
-        bot.vel[0] += away[0] * 8;
-        bot.vel[2] += away[2] * 8;
-      }
+    [-47, -33, 33, 47].forEach((x, index) => {
+      const z = index < 2 ? -34.2 : 34.2;
+      drawBox(mapPoint(x, 4.9, z), [0.26 * MAP_SCALE, 3.9, 0.26 * MAP_SCALE], [0.11, 0.12, 0.12], 0);
+      drawBox(mapPoint(x, 7.0, z), [1.4 * MAP_SCALE, 0.36, 1.4 * MAP_SCALE], [0.88 * pulse, 0.72 * pulse, 0.44], 0);
     });
   }
 
-  function updateBotSpeedPads(bot) {
-    speedPads.forEach((pad) => {
-      if (distance2d(bot.pos, pad.pos) < 2.9) {
-        bot.vel[0] += pad.dir[0] * 7;
-        bot.vel[2] += pad.dir[2] * 7;
-      }
-    });
-  }`
-    );
-
-    replaceOnce(
-      `  function updateBots(dt) {
-    activeBots().forEach((bot) => {
-      if (!bot.alive) {
-        bot.respawnTimer -= dt;
-        if (bot.respawnTimer <= 0) respawnBot(bot);
-        return;
-      }
-
-      bot.fireTimer = Math.max(0, bot.fireTimer - dt);
-      bot.retargetTimer -= dt;
-
-      const enemy = findBotTarget(bot);
-
-      if (enemy) {
-        const toEnemy = sub(enemy.pos, [bot.pos[0], EYE_HEIGHT, bot.pos[2]]);
-        bot.target = [enemy.pos[0] + Math.sin(performance.now() * 0.001 + bot.index) * 2.5, 0, enemy.pos[2]];
-        bot.yaw = Math.atan2(toEnemy[0], -toEnemy[2]);
-        if (bot.fireTimer <= 0) botFire(bot, enemy);
-      } else if (bot.retargetTimer <= 0 || distance2d(bot.pos, bot.target) < 1.5) {
-        bot.target = randomArenaPoint();
-        bot.retargetTimer = 1.2 + Math.random() * 2.4;
-      }
-
-      const toTarget = sub(bot.target, bot.pos);
-      const dist = Math.hypot(toTarget[0], toTarget[2]) || 1;
-      const moveX = (toTarget[0] / dist) * bot.baseSpeed;
-      const moveZ = (toTarget[2] / dist) * bot.baseSpeed;
-      bot.vel[0] += (moveX - bot.vel[0]) * Math.min(1, dt * 5);
-      bot.vel[2] += (moveZ - bot.vel[2]) * Math.min(1, dt * 5);
-      bot.pos[0] += bot.vel[0] * dt;
-      bot.pos[2] += bot.vel[2] * dt;
-      bot.pos[0] = clamp(bot.pos[0], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
-      bot.pos[2] = clamp(bot.pos[2], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
-      collideBot(bot);
-      updateBotJumpPads(bot);
-
-      if (!enemy && Math.hypot(bot.vel[0], bot.vel[2]) > 0.1) {
-        bot.yaw = Math.atan2(bot.vel[0], -bot.vel[2]);
-      }
-    });
-  }`,
-      `  function updateBots(dt) {
-    activeBots().forEach((bot) => {
-      if (!bot.alive) {
-        bot.respawnTimer -= dt;
-        if (bot.respawnTimer <= 0) respawnBot(bot);
-        return;
-      }
-
-      bot.fireTimer = Math.max(0, bot.fireTimer - dt);
-      bot.retargetTimer -= dt;
-      bot.strafeTimer -= dt;
-      if (bot.strafeTimer <= 0) {
-        bot.strafeTimer = 0.55 + Math.random() * 1.4;
-        bot.strafeDir = Math.random() < 0.5 ? -1 : 1;
-      }
-
-      const enemy = findBotTarget(bot);
-      const healPad = bot.health < bot.maxHealth * 0.42 ? nearestReadyPickup("heal", bot.pos) : null;
-
-      if (enemy) {
-        const toEnemy = sub(enemy.pos, [bot.pos[0], EYE_HEIGHT, bot.pos[2]]);
-        const flat = normalize([toEnemy[0], 0, toEnemy[2]]);
-        const side = [-flat[2], 0, flat[0]];
-        const desiredRange = bot.health < bot.maxHealth * 0.38 ? 42 : 18 + bot.aggression * 9;
-        const rangeError = clamp((enemy.distance - desiredRange) / 28, -1, 1);
-        const retreat = bot.health < bot.maxHealth * 0.28 ? -1 : 0;
-        const pressure = retreat || rangeError;
-        bot.target = [
-          bot.pos[0] + flat[0] * pressure * 9 + side[0] * bot.strafeDir * 8,
-          0,
-          bot.pos[2] + flat[2] * pressure * 9 + side[2] * bot.strafeDir * 8
-        ];
-        bot.yaw = Math.atan2(toEnemy[0], -toEnemy[2]);
-        if (healPad && bot.health < bot.maxHealth * 0.3) bot.target = [healPad.pos[0], 0, healPad.pos[2]];
-        if (bot.fireTimer <= 0 && hasLineOfSight([bot.pos[0], 1.35, bot.pos[2]], enemy.pos)) botFire(bot, enemy);
-      } else if (healPad) {
-        bot.target = [healPad.pos[0], 0, healPad.pos[2]];
-      } else if (bot.retargetTimer <= 0 || distance2d(bot.pos, bot.target) < 1.5) {
-        bot.target = randomArenaPoint();
-        bot.retargetTimer = 1.2 + Math.random() * 2.4;
-      }
-
-      const toTarget = sub(bot.target, bot.pos);
-      const dist = Math.hypot(toTarget[0], toTarget[2]) || 1;
-      const speedBoost = enemy && enemy.distance > 55 ? 1.25 : bot.health < bot.maxHealth * 0.32 ? 1.18 : 1;
-      const moveX = (toTarget[0] / dist) * bot.baseSpeed * speedBoost;
-      const moveZ = (toTarget[2] / dist) * bot.baseSpeed * speedBoost;
-      bot.vel[0] += (moveX - bot.vel[0]) * Math.min(1, dt * 6.4);
-      bot.vel[2] += (moveZ - bot.vel[2]) * Math.min(1, dt * 6.4);
-      bot.pos[0] += bot.vel[0] * dt;
-      bot.pos[2] += bot.vel[2] * dt;
-      bot.pos[0] = clamp(bot.pos[0], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
-      bot.pos[2] = clamp(bot.pos[2], -WORLD_LIMIT + 1.5, WORLD_LIMIT - 1.5);
-      collideBot(bot);
-      updateBotJumpPads(bot);
-      updateBotSpeedPads(bot);
-
-      if (!enemy && Math.hypot(bot.vel[0], bot.vel[2]) > 0.1) {
-        bot.yaw = Math.atan2(bot.vel[0], -bot.vel[2]);
-      }
-    });
-  }`
-    );
-
-    replaceOnce(`        pos: player.pos`, `        pos: player.pos,
-        vel: player.vel,
-        health: player.health`);
-    replaceOnce(`        pos: [other.pos[0], EYE_HEIGHT, other.pos[2]]`, `        pos: [other.pos[0], EYE_HEIGHT, other.pos[2]],
-        vel: other.vel,
-        health: other.health`);
-    replaceOnce(
-      `      if (!best || distance < best.distance) {
-        best = { ...target, distance };
-      }`,
-      `      const lowHealthBonus = clamp((100 - (target.health || 100)) / 100, 0, 1) * 38;
-      const score = distance - lowHealthBonus;
-      if (!best || score < best.score) {
-        best = { ...target, distance, score };
-      }`
-    );
-
-    replaceOnce(
-      `  function botFire(bot, target) {
-    bot.fireTimer = BOT_FIRE_MIN + Math.random() * 0.34;
-    const origin = [bot.pos[0], 1.35, bot.pos[2]];
-    const aim = normalize(sub(target.pos, origin));
-    const miss = Math.max(0.035, target.distance / 360 + BOT_FIRE_SPREAD * 0.24);
-    const dir = spreadDirectionFromBasis(aim, miss);`,
-      `  function botFire(bot, target) {
-    bot.fireTimer = BOT_FIRE_MIN + Math.random() * (0.28 / bot.aggression);
-    const origin = [bot.pos[0], 1.35, bot.pos[2]];
-    const leadTime = clamp(target.distance / 145, 0, 0.48);
-    const targetPos = target.vel ? add(target.pos, scale(target.vel, leadTime)) : target.pos;
-    const aim = normalize(sub(targetPos, origin));
-    const miss = Math.max(0.016, target.distance / (560 * bot.aimSkill) + BOT_FIRE_SPREAD * 0.18);
-    const dir = spreadDirectionFromBasis(aim, miss);`
-    );
-
-    replaceOnce(
-      `    const bodyScale = state.activeSlot === "utility" ? [0.28, 0.24, 0.38] : [0.26, 0.18, 0.72];
-    const barrelScale = state.activeSlot === "melee" ? [0.11, 0.09, 1.05] : state.activeSlot === "utility" ? [0.42, 0.18, 0.42] : [0.13, 0.13, 0.58];`,
-      `    const bodyScale = state.activeSlot === "utility" ? [0.28, 0.24, 0.38] : equipped.flame ? [0.34, 0.24, 0.82] : equipped.name === "AWP Marker" ? [0.22, 0.16, 1.08] : [0.26, 0.18, 0.72];
-    const barrelScale = state.activeSlot === "melee" ? [0.11, 0.09, 1.05] : state.activeSlot === "utility" ? [0.42, 0.18, 0.42] : equipped.flame ? [0.22, 0.22, 0.76] : equipped.name === "AWP Marker" ? [0.09, 0.09, 1.12] : [0.13, 0.13, 0.58];`
-    );
-
-    replaceOnce(
-      `    const itemColor = equipped.color || [0.8, 0.9, 1.0];`,
-      `    const itemColor = skins && typeof skins.getSkinColor === "function"
-      ? skins.getSkinColor(equipped.name, equipped.color || [0.8, 0.9, 1.0])
-      : equipped.color || [0.8, 0.9, 1.0];`
-    );
-
-    replaceOnce(
-      `    return items;
-  }
-
-  function campusDecals() {`,
-      `    [
-      { name: "north-class", z: -16.8, boardZ: -20.8, color: [0.12, 0.24, 0.29] },
-      { name: "south-class", z: 16.8, boardZ: 20.8, color: [0.27, 0.18, 0.24] }
-    ].forEach((room) => {
-      items.push(arenaBox(\`\${room.name}-divider-l\`, [-8.2, 1.25, room.z], [0.7, 2.5, 11.0], [0.2, 0.27, 0.31], true));
-      items.push(arenaBox(\`\${room.name}-divider-r\`, [8.2, 1.25, room.z], [0.7, 2.5, 11.0], [0.2, 0.27, 0.31], true));
-      items.push(arenaBox(\`\${room.name}-whiteboard\`, [0, 1.55, room.boardZ], [8.5, 1.45, 0.18], [0.9, 0.96, 0.9], false));
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 4; col++) {
-          const x = -5.4 + col * 3.6;
-          const z = room.z + (row - 1) * 2.15;
-          items.push(arenaBox(\`\${room.name}-desk-\${row}-\${col}\`, [x, 0.46, z], [1.8, 0.32, 1.1], [0.36, 0.29, 0.2], true));
-          items.push(arenaBox(\`\${room.name}-chair-\${row}-\${col}\`, [x, 0.36, z + (room.z < 0 ? 0.92 : -0.92)], [0.72, 0.72, 0.62], room.color, true));
-        }
-      }
-    });
-
+  function renderCampusDetails(now) {
+    const flagWave = Math.sin(now * 1.9) * 0.18;
+    drawBox(mapPoint(-6, 5.2, 31.7), [0.16 * MAP_SCALE, 7.4, 0.16 * MAP_SCALE], [0.38, 0.38, 0.36], 0);
+    drawBox(mapPoint(-4.8, 7.4, 31.7), [2.2 * MAP_SCALE, 0.72, 0.08 * MAP_SCALE], [0.16, 0.32, 0.58], flagWave);
+    drawBox(mapPoint(-3.6, 7.1, 31.7), [2.0 * MAP_SCALE, 0.44, 0.08 * MAP_SCALE], [0.82, 0.84, 0.78], -flagWave * 0.6);
     [
-      [-35, -31, 8.5, 4.2], [-35, 31, 8.5, 4.2], [35, -31, 8.5, 4.2], [35, 31, 8.5, 4.2],
-      [-34, 0, 5.5, 13.0], [34, 0, 5.5, 13.0], [0, -36, 16.0, 4.2], [0, 36, 16.0, 4.2]
-    ].forEach(([x, z, sx, sz], index) => {
-      const color = index % 2 === 0 ? [0.16, 0.22, 0.2] : [0.18, 0.18, 0.24];
-      items.push(arenaBox(\`outdoor-cover-\${index}\`, [x, 0.85, z], [sx, 1.7, sz], color, true));
+      [-54, 43], [-40, 41], [-24, 45], [24, 43], [40, 41], [54, 43],
+      [-54, -43], [-38, -46], [-22, -42], [22, -44], [38, -46], [54, -42],
+      [-58, -12], [-58, 10], [58, -12], [58, 12]
+    ].forEach(([x, z], index) => {
+      const sway = Math.sin(now * 0.55 + index) * 0.22;
+      drawBox(mapPoint(x, 1.65, z), [0.42 * MAP_SCALE, 3.3, 0.42 * MAP_SCALE], [0.25, 0.15, 0.08], sway);
+      drawBox(mapPoint(x + sway * 0.8, 4.2, z), [3.2 * MAP_SCALE, 2.2, 3.0 * MAP_SCALE], [0.08, 0.24 + index % 3 * 0.025, 0.10], sway * 0.5);
+      drawBox(mapPoint(x - sway * 0.6, 5.15, z + 0.8), [2.4 * MAP_SCALE, 1.45, 2.3 * MAP_SCALE], [0.10, 0.30 + index % 4 * 0.02, 0.12], -sway * 0.4);
     });
+  }`;
+  }
 
-    for (let i = 0; i < 10; i++) {
-      const x = -38 + i * 8.4;
-      items.push(arenaBox(\`courtyard-planter-n-\${i}\`, [x, 0.42, -31.5], [3.0, 0.84, 1.0], [0.15, 0.34, 0.22], true));
-      items.push(arenaBox(\`courtyard-planter-s-\${i}\`, [x, 0.42, 31.5], [3.0, 0.84, 1.0], [0.15, 0.34, 0.22], true));
+  function realisticCampusFunctions() {
+    return `  function realisticCampusSolids() {
+    const items = [];
+    const brick = [0.50, 0.41, 0.33];
+    const darkBrick = [0.36, 0.28, 0.24];
+    const concrete = [0.50, 0.49, 0.44];
+    const glass = [0.20, 0.38, 0.48];
+    const roof = [0.13, 0.14, 0.14];
+    const metal = [0.28, 0.30, 0.30];
+    const wood = [0.36, 0.27, 0.17];
+    const add = (name, pos, scaleVector, color, solid, yaw = 0) => {
+      const item = arenaBox(name, pos, scaleVector, color, solid);
+      if (yaw) item.yaw = yaw;
+      items.push(item);
+      return item;
+    };
+    const addVehicle = (name, x, z, color, yaw = 0) => {
+      add(name + "-body", [x, 0.78, z], [4.4, 1.15, 2.1], color, true, yaw);
+      add(name + "-roof", [x - 0.35, 1.48, z], [2.35, 0.76, 1.72], scaleColor(color, 0.8), false, yaw);
+      add(name + "-windshield", [x - 1.65, 1.43, z], [0.22, 0.58, 1.4], glass, false, yaw);
+      add(name + "-rear-glass", [x + 1.55, 1.38, z], [0.18, 0.5, 1.34], glass, false, yaw);
+      [-1.35, 1.35].forEach((dx, i) => [-1.05, 1.05].forEach((dz, j) => add(name + "-wheel-" + i + "-" + j, [x + dx, 0.33, z + dz], [0.64, 0.64, 0.3], [0.03, 0.03, 0.03], false, yaw)));
+    };
+    const addBus = (name, x, z, yaw = 0) => {
+      add(name + "-body", [x, 1.1, z], [9.8, 2.2, 2.45], [0.96, 0.72, 0.18], true, yaw);
+      add(name + "-roof", [x, 2.28, z], [9.4, 0.32, 2.18], [0.86, 0.62, 0.15], false, yaw);
+      for (let i = 0; i < 5; i++) add(name + "-window-" + i, [x - 3.5 + i * 1.65, 2.02, z - 1.25], [1.05, 0.52, 0.12], glass, false, yaw);
+      for (let i = 0; i < 4; i++) add(name + "-wheel-" + i, [x - 3.2 + i * 2.15, 0.42, z + 1.22], [0.72, 0.72, 0.26], [0.025, 0.025, 0.025], false, yaw);
+    };
+    const addFence = (name, x, z, sx, sz) => {
+      add(name + "-rail-low", [x, 0.8, z], [sx, 0.12, sz], metal, false);
+      add(name + "-rail-high", [x, 1.55, z], [sx, 0.12, sz], metal, false);
+      const count = Math.max(2, Math.floor(Math.max(sx, sz) / 5));
+      for (let i = 0; i < count; i++) {
+        const t = count === 1 ? 0 : i / (count - 1);
+        add(name + "-post-" + i, [x + (sx > sz ? (t - 0.5) * sx : 0), 0.9, z + (sz >= sx ? (t - 0.5) * sz : 0)], [0.16, 1.8, 0.16], metal, true);
+      }
+    };
+
+    add("realistic-campus-ground", [0, -0.2, 0], [132, 0.12, 132], [0.17, 0.29, 0.18], false);
+    [["north-wing-west", -18, -39.5, 24, 4.1, 4.2], ["north-wing-east", 18, -39.5, 24, 4.1, 4.2], ["south-wing-west", -18, 39.5, 24, 4.1, 4.2], ["south-wing-east", 18, 39.5, 24, 4.1, 4.2], ["west-academic-north", -39.5, -18, 4.2, 4.1, 24], ["west-academic-south", -39.5, 18, 4.2, 4.1, 24], ["east-admin-north", 39.5, -18, 4.2, 4.1, 24], ["east-admin-south", 39.5, 18, 4.2, 4.1, 24]].forEach(([name, x, z, sx, sy, sz], index) => {
+      add(name, [x, sy / 2, z], [sx, sy, sz], index % 2 ? darkBrick : brick, true);
+      add(name + "-roof", [x, sy + 0.22, z], [sx + 1.2, 0.42, sz + 1.2], roof, false);
+    });
+    add("south-glass-entry", [0, 2.1, 39.2], [7.2, 3.6, 0.35], glass, false);
+    add("north-glass-entry", [0, 2.1, -39.2], [7.2, 3.6, 0.35], glass, false);
+    add("front-canopy", [0, 4.15, 33.0], [18.0, 0.38, 5.2], [0.18, 0.19, 0.18], false);
+    add("rear-canopy", [0, 4.15, -33.0], [18.0, 0.38, 5.2], [0.18, 0.19, 0.18], false);
+    [-7.4, -2.5, 2.5, 7.4].forEach((x, index) => {
+      add("front-column-" + index, [x, 1.8, 33.0], [0.52, 3.6, 0.52], concrete, true);
+      add("rear-column-" + index, [x, 1.8, -33.0], [0.52, 3.6, 0.52], concrete, true);
+    });
+    for (let i = 0; i < 12; i++) {
+      const x = -23.0 + i * 4.2;
+      add("front-window-" + i, [x, 3.0, 41.62], [2.0, 0.92, 0.12], glass, false);
+      add("rear-window-" + i, [x, 3.0, -41.62], [2.0, 0.92, 0.12], glass, false);
+      add("front-planter-" + i, [-54 + i * 9.8, 0.42, 31.5], [3.0, 0.84, 1.0], [0.20, 0.34, 0.22], true);
+      add("rear-planter-" + i, [-54 + i * 9.8, 0.42, -31.5], [3.0, 0.84, 1.0], [0.20, 0.34, 0.22], true);
     }
-
+    [[-16, 12], [-10, 8], [-15, -10], [14, -12], [10, -7], [15, 8], [-20, 3], [18, 15]].forEach(([x, z], index) => {
+      add("real-caf-table-" + index, [x, 0.6, z], [3.4, 0.35, 1.2], index % 2 ? [0.19, 0.30, 0.31] : [0.43, 0.36, 0.25], true);
+      add("real-caf-bench-a-" + index, [x, 0.42, z - 1.15], [3.6, 0.25, 0.38], [0.16, 0.16, 0.15], true);
+      add("real-caf-bench-b-" + index, [x, 0.42, z + 1.15], [3.6, 0.25, 0.38], [0.16, 0.16, 0.15], true);
+    });
+    [[-30, 48, [0.14, 0.22, 0.30]], [-18, 48, [0.42, 0.42, 0.38]], [-6, 48, [0.28, 0.10, 0.09]], [8, 48, [0.08, 0.18, 0.30]], [22, 48, [0.50, 0.50, 0.46]], [36, 48, [0.20, 0.34, 0.22]], [-30, -50, [0.46, 0.44, 0.38]], [-16, -50, [0.16, 0.22, 0.28]], [0, -50, [0.36, 0.18, 0.14]], [16, -50, [0.40, 0.40, 0.36]], [32, -50, [0.08, 0.18, 0.30]]].forEach(([x, z, color], index) => addVehicle("car-" + index, x, z, color, index % 2 ? Math.PI * 0.02 : -Math.PI * 0.02));
+    addBus("bus-east-a", 44, 26, Math.PI * 0.5);
+    addBus("bus-east-b", 53, 18, Math.PI * 0.5);
+    addBus("bus-north-service", 46, -49, 0);
+    for (let row = 0; row < 5; row++) add("field-bleacher-row-" + row, [-21.6 - row * 0.72, 0.85 + row * 0.2, -3], [0.9, 0.22, 31], [0.52, 0.54, 0.53], true);
+    add("goalpost-north-a", [-43, 2.0, -22], [0.18, 4.0, 0.18], [0.92, 0.88, 0.58], false);
+    add("goalpost-north-cross", [-43, 3.9, -22], [7.5, 0.18, 0.18], [0.92, 0.88, 0.58], false);
+    add("goalpost-south-a", [-43, 2.0, 16], [0.18, 4.0, 0.18], [0.92, 0.88, 0.58], false);
+    add("goalpost-south-cross", [-43, 3.9, 16], [7.5, 0.18, 0.18], [0.92, 0.88, 0.58], false);
+    addFence("track-fence-n", -43, -29.5, 44, 0.14);
+    addFence("track-fence-s", -43, 23.5, 44, 0.14);
+    addFence("track-fence-w", -66, -3, 0.14, 52);
+    addFence("track-fence-e", -20, -3, 0.14, 52);
+    [[51, -33], [55, -34.5], [48, -36], [-55, 35], [-50, 37], [-46, 34]].forEach(([x, z], index) => {
+      add("dumpster-" + index, [x, 0.82, z], [3.2, 1.64, 2.0], [0.10, 0.24, 0.18], true, index % 2 ? 0.18 : -0.12);
+      add("dumpster-lid-" + index, [x, 1.76, z], [3.3, 0.18, 2.05], [0.06, 0.12, 0.10], false, index % 2 ? 0.18 : -0.12);
+    });
     return items;
   }
 
-  function campusDecals() {`
-    );
-
-    replaceOnce(
-      `      arenaBox("library-zone", [18.0, 0.038, 8.0], [7.0, 0.05, 8.5], [0.24, 0.18, 0.34], false)`,
-      `      arenaBox("library-zone", [18.0, 0.038, 8.0], [7.0, 0.05, 8.5], [0.24, 0.18, 0.34], false),
-      arenaBox("north-courtyard-path", [0, 0.018, -33.5], [56.0, 0.05, 3.6], [0.24, 0.27, 0.25], false),
-      arenaBox("south-courtyard-path", [0, 0.018, 33.5], [56.0, 0.05, 3.6], [0.24, 0.27, 0.25], false),
-      arenaBox("west-courtyard-path", [-33.5, 0.019, 0], [3.6, 0.05, 56.0], [0.24, 0.27, 0.25], false),
-      arenaBox("east-courtyard-path", [33.5, 0.019, 0], [3.6, 0.05, 56.0], [0.24, 0.27, 0.25], false)`
-    );
-
-    return source;
+  function realisticCampusDecals() {
+    const items = [];
+    const add = (name, pos, scaleVector, color, yaw = 0) => {
+      const item = arenaBox(name, pos, scaleVector, color, false);
+      if (yaw) item.yaw = yaw;
+      items.push(item);
+      return item;
+    };
+    [["south-parking-asphalt", [0, -0.035, 47.5], [78.0, 0.05, 24.0], [0.08, 0.09, 0.09]], ["north-service-asphalt", [0, -0.034, -49.5], [76.0, 0.05, 22.0], [0.075, 0.08, 0.08]], ["front-walk", [0, -0.028, 33.5], [72.0, 0.05, 5.6], [0.50, 0.49, 0.44]], ["back-walk", [0, -0.027, -33.5], [72.0, 0.05, 5.6], [0.48, 0.47, 0.42]], ["main-entry-walk", [0, -0.026, 0], [6.0, 0.05, 70.0], [0.52, 0.51, 0.46]], ["football-field", [-43, -0.032, -3], [32, 0.05, 42], [0.12, 0.34, 0.17]], ["running-track-n", [-43, -0.031, -26], [38, 0.05, 3.0], [0.45, 0.16, 0.12]], ["running-track-s", [-43, -0.031, 20], [38, 0.05, 3.0], [0.45, 0.16, 0.12]], ["running-track-w", [-63, -0.03, -3], [3.0, 0.05, 46], [0.45, 0.16, 0.12]], ["running-track-e", [-23, -0.03, -3], [3.0, 0.05, 46], [0.45, 0.16, 0.12]], ["bus-loop", [43, -0.03, 24], [28, 0.05, 14], [0.09, 0.10, 0.10]], ["front-building-shadow", [0, 0.024, 36.2], [78.0, 0.05, 5.0], [0.13, 0.13, 0.11]], ["rear-building-shadow", [0, 0.024, -36.2], [78.0, 0.05, 5.0], [0.12, 0.12, 0.10]], ["gym-entry-shadow", [0, 0.025, 28.8], [42.0, 0.05, 3.0], [0.11, 0.11, 0.10]], ["bus-loop-shadow", [44, 0.025, 22], [31.0, 0.05, 10.0], [0.055, 0.058, 0.055]]].forEach(([name, pos, scaleVector, color]) => add(name, pos, scaleVector, color));
+    for (let i = 0; i < 11; i++) {
+      const x = -35 + i * 7;
+      add("south-parking-line-" + i, [x, 0.026, 48], [0.16, 0.05, 18.0], [0.88, 0.82, 0.58]);
+      add("north-parking-line-" + i, [x, 0.026, -50], [0.16, 0.05, 16.0], [0.84, 0.80, 0.58]);
+    }
+    for (let i = 0; i < 7; i++) {
+      add("front-crosswalk-" + i, [-6 + i * 2, 0.028, 42.2], [0.9, 0.05, 5.0], [0.86, 0.86, 0.80]);
+      add("rear-crosswalk-" + i, [-6 + i * 2, 0.028, -42.2], [0.9, 0.05, 5.0], [0.86, 0.86, 0.80]);
+    }
+    [-57, -49, -41, -33, -25, -17, -9].forEach((x, index) => add("field-yard-line-" + index, [x, 0.033, -3], [0.12, 0.05, 36], [0.78, 0.84, 0.76]));
+    for (let i = 0; i < 8; i++) {
+      const z = -22 + i * 6;
+      add("track-lane-left-" + i, [-63, 0.034, z], [0.16, 0.05, 2.8], [0.72, 0.58, 0.44]);
+      add("track-lane-right-" + i, [-23, 0.034, z], [0.16, 0.05, 2.8], [0.72, 0.58, 0.44]);
+    }
+    for (let i = 0; i < 10; i++) add("bus-loop-lane-" + i, [34 + i * 2.2, 0.036, 24], [1.2, 0.05, 0.16], [0.90, 0.74, 0.30]);
+    [-40, -24, -8, 8, 24, 40].forEach((x, index) => {
+      add("south-lane-dash-" + index, [x, 0.037, 40.7], [5.6, 0.05, 0.14], [0.82, 0.76, 0.52]);
+      add("north-lane-dash-" + index, [x, 0.037, -43.0], [5.6, 0.05, 0.14], [0.82, 0.76, 0.52]);
+    });
+    return items;
+  }`;
   }
 })();
