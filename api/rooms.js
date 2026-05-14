@@ -243,6 +243,7 @@ function readJson(req) {
 
 function setHeaders(res) {
   res.setHeader("cache-control", "no-store");
+  res.setHeader("access-control-allow-origin", "*");
   res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
   res.setHeader("access-control-allow-headers", "content-type");
   res.setHeader("content-type", "application/json; charset=utf-8");
