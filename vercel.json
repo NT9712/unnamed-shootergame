@@ -4,5 +4,23 @@
   "installCommand": "",
   "outputDirectory": ".",
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/room1.html", "destination": "/index.html" },
+    { "source": "/room2.html", "destination": "/index.html" },
+    { "source": "/room3.html", "destination": "/index.html" },
+    { "source": "/room4.html", "destination": "/index.html" },
+    { "source": "/room5.html", "destination": "/index.html" },
+    { "source": "/room6.html", "destination": "/index.html" },
+    { "source": "/room7.html", "destination": "/index.html" },
+    { "source": "/room8.html", "destination": "/index.html" },
+    { "source": "/room9.html", "destination": "/index.html" },
+    { "source": "/room10.html", "destination": "/index.html" },
+    { "source": "/room11.html", "destination": "/index.html" },
+    { "source": "/room12.html", "destination": "/index.html" },
+    { "source": "/room13.html", "destination": "/index.html" },
+    { "source": "/room14.html", "destination": "/index.html" },
+    { "source": "/room15.html", "destination": "/index.html" },
+    { "source": "/room16.html", "destination": "/index.html" }
+  ]
 }
