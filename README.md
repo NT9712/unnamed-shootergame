@@ -42,7 +42,7 @@ The project is static and deploys directly on Vercel from `main`.
 - Output directory: `.`
 - Production branch: `main`
 
-The repository includes `vercel.json` and `.vercelignore` so Vercel serves the root static files without a build step.
+The repository includes `vercel.json` so Vercel serves the root static files without a build step.
 
 ## Menu And Settings
 
@@ -50,11 +50,11 @@ The main menu includes Home, Buy Menu, Locker, Online, and Settings views. Setti
 
 The buy menu is split into one rifle, one pistol, one melee item, and one utility item. Cash starts at $800, is earned from KOs and round payouts, and is spent during the round buy phase on temporary gear. Items bought during the same life can be re-equipped without paying again. Paid weapons are dropped on death, the death buy menu opens during respawn, and ammo is reset on respawn.
 
-The Locker is also client-side and persists in `localStorage`. It tracks round KOs, deaths, KDR, headshot percentage, backstabs, lifetime stats, and Campus Credits. Credits are earned after each round from the round data and can be spent on Freshman, Varsity, and Final Bell skin cases. Skins can be equipped per weapon and affect the rendered weapon/tracer color.
+The Home view includes a username/password profile system. Accounts are browser-local prototype accounts keyed by username, not generated IDs. Signing in switches the Locker save slot to that username, so Campus Credits, skin inventory, equipped skins, payouts, and payment entries persist separately per username on that browser.
 
 The payment entry is a local prototype entry only. It records a reference and amount in the browser and grants local test credits. It is not connected to Stripe, Vercel functions, or any real payment processor.
 
-The Online view uses WebRTC rooms. On Vercel, `/api/rooms` acts as a lightweight signaling endpoint so Quick Play can find an open room, publish the host offer, and return the joiner's reply without manual copy/paste in the common case.
+The Online view uses WebRTC rooms. On Vercel, `/api/rooms` acts as a lightweight signaling endpoint so Quick Play can find an open room, publish the host offer, and return the joiner's reply without manual copy/paste in the common case. Fixed room URLs from `/room1.html` through `/room16.html` map to dedicated `ROOM01` through `ROOM16` codes, so different groups can stay in separate room pages.
 
 For more reliable room codes, deploy the persistent signaling service in `server/` to Railway, Render, Fly.io, or a VPS with `node server/index.js`, then open the frontend with `?signal=https://your-room-server.example.com`. The client stores that signaling URL locally and falls back to `/api/rooms` when no server is configured.
 
@@ -71,7 +71,7 @@ After connection, the game syncs display name, position, aim direction, active i
 
 ## Current Mechanics
 
-Movement and combat now include reworked sprint stamina, crouching/sneaking, slides, aiming down sights, dash cooldown, utility cooldown, melee cooldown, damage dropoff, Eagle Marker and AWP Marker headshots, a Foam Flamethrower cone weapon, foam-knife backstabs, jump pads, speed lanes, teleport gates, heal/ammo pads, armor regeneration, spawn protection, kill streak callouts, and smarter team-based bot targeting. The map is now a much larger realistic campus arena with a central gym/main building, academic wings, front and rear entrances, asphalt parking, bus loop, service yard, football field, running track, bleachers, fences, dumpsters, bike racks, windows, rooflines, shrubs, trees, lamps, classroom props, cafeteria tables, a trophy case, court markings, floating name tags, and uniformed team characters.
+Movement and combat now include reworked sprint stamina, crouching/sneaking, slides, aiming down sights, dash cooldown, utility cooldown, melee cooldown, damage dropoff, marker projectile drop, recoil recovery, rapid-fire spread bloom, movement/airborne accuracy penalties, pellet spread, Eagle Marker and AWP Marker headshots, a Foam Flamethrower cone weapon, foam-knife backstabs, jump pads, speed lanes, teleport gates, heal/ammo pads, armor regeneration, spawn protection, kill streak callouts, and smarter team-based bot targeting. Low props, pads, planters, bushes, benches, tables, desks, chairs, bleachers, dumpsters, and similar arena items can now be landed on after a jump. The map is now a much larger realistic campus arena with a central gym/main building, academic wings, front and rear entrances, asphalt parking, bus loop, service yard, football field, running track, bleachers, fences, dumpsters, bike racks, windows, rooflines, shrubs, trees, lamps, classroom props, cafeteria tables, a trophy case, court markings, floating name tags, and uniformed team characters.
 
 Ten strong next mechanics to consider: wall-running, mantle/climb, zip-lines, weapon attachments, objective capture zones, class abilities, deployable shields, radar pings, match economy, and round-end MVP cards.
 
