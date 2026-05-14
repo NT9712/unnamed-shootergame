@@ -4,12 +4,7 @@ const ROOM_TTL_MS = 8 * 60 * 1000;
 const CLAIM_TTL_MS = 35 * 1000;
 const MAX_CODE_LENGTH = 9000;
 const MAX_ROOM_PLAYERS = 2;
-const ROOM_CODES = [
-  "HALL01", "HALL02", "HALL03", "HALL04",
-  "LOCK01", "LOCK02", "LOCK03", "LOCK04",
-  "GYM001", "GYM002", "GYM003", "GYM004",
-  "CAF001", "CAF002", "CAF003", "CAF004"
-];
+const ROOM_CODES = Array.from({ length: 16 }, (_, index) => `ROOM${String(index + 1).padStart(2, "0")}`);
 const MAX_ACTIVE_ROOMS = ROOM_CODES.length;
 
 const store = globalThis.__hssaeRooms || new Map();
@@ -46,10 +41,7 @@ module.exports = async function handler(req, res) {
 function handleGet(req, res) {
   const url = new URL(req.url, "https://hss.local");
   if (url.searchParams.get("stats")) {
-    sendJson(res, 200, {
-      ok: true,
-      stats: getStats()
-    });
+    sendJson(res, 200, { ok: true, stats: getStats() });
     return;
   }
 
@@ -91,17 +83,12 @@ function handlePost(body, res) {
   const action = String(body.action || "").toLowerCase();
   if (action !== "offer" && action !== "answer") throw new Error("Invalid room action");
 
-  const room = normalizeRoom(body.room, action === "offer" ? "quick" : "custom", action);
+  const fallbackMode = body.room && body.room.mode === "quick" ? "quick" : "custom";
+  const room = normalizeRoom(body.room, fallbackMode, action);
   const code = sanitizeCode(body.code);
   const now = Date.now();
   const previous = store.get(room.id);
-  const entry = previous || {
-    room,
-    offer: "",
-    answer: "",
-    createdAt: now,
-    updatedAt: now
-  };
+  const entry = previous || { room, offer: "", answer: "", createdAt: now, updatedAt: now };
 
   entry.room = { ...entry.room, ...room };
   entry.updatedAt = now;
@@ -115,9 +102,7 @@ function handlePost(body, res) {
   } else {
     if (!entry.offer) throw new Error("Room has no offer yet");
     if (entry.answer) throw new Error("Room is full");
-    if (entry.claimToken && body.claimToken !== entry.claimToken && Date.now() - entry.claimedAt < CLAIM_TTL_MS) {
-      throw new Error("Room is reserved by another joiner");
-    }
+    if (entry.claimToken && body.claimToken !== entry.claimToken && Date.now() - entry.claimedAt < CLAIM_TTL_MS) throw new Error("Room is reserved by another joiner");
     entry.answer = code;
     entry.claimedAt = 0;
     entry.claimToken = "";
@@ -147,11 +132,7 @@ function publicRoom(entry, options = {}) {
 function normalizeRoom(room, fallbackMode, action) {
   const raw = room && typeof room === "object" ? room : {};
   const preferred = sanitizeRoomId(raw.id);
-  return {
-    id: action === "offer" ? chooseRoomCode(preferred) : preferred,
-    name: sanitizeName(raw.name),
-    mode: raw.mode === "quick" || fallbackMode === "quick" ? "quick" : "custom"
-  };
+  return { id: action === "offer" ? chooseRoomCode(preferred) : preferred, name: sanitizeName(raw.name), mode: raw.mode === "quick" || fallbackMode === "quick" ? "quick" : "custom" };
 }
 
 function sanitizeRoomId(value) {
@@ -165,9 +146,7 @@ function sanitizeName(value) {
 function sanitizeCode(value) {
   const code = String(value || "").trim();
   if (!code || code.length > MAX_CODE_LENGTH) throw new Error("Invalid room code");
-  if (!code.startsWith("HSSR.") && !code.startsWith("HSS1.") && !code.startsWith("{")) {
-    throw new Error("Unsupported room code");
-  }
+  if (!code.startsWith("HSSR.") && !code.startsWith("HSS1.") && !code.startsWith("{")) throw new Error("Unsupported room code");
   return code;
 }
 
@@ -176,12 +155,10 @@ function chooseRoomCode(preferred) {
     const existing = store.get(preferred);
     if (!existing || isExpired(existing) || !existing.answer) return preferred;
   }
-
   for (const code of ROOM_CODES) {
     const existing = store.get(code);
     if (!existing || isExpired(existing)) return code;
   }
-
   throw new Error("Server room code limit reached");
 }
 
@@ -190,9 +167,7 @@ function createJoinToken() {
 }
 
 function cleanupRooms() {
-  for (const [id, entry] of store) {
-    if (isExpired(entry)) store.delete(id);
-  }
+  for (const [id, entry] of store) if (isExpired(entry)) store.delete(id);
 }
 
 function isExpired(entry) {
@@ -212,15 +187,7 @@ function touch(entry) {
 function getStats() {
   const rooms = Array.from(store.values()).filter((entry) => !isExpired(entry));
   const openRooms = rooms.filter(isJoinable).length;
-  return {
-    activeRooms: rooms.length,
-    openRooms,
-    fullRooms: rooms.filter((entry) => entry.answer).length,
-    maxRooms: MAX_ACTIVE_ROOMS,
-    codesLeft: Math.max(0, MAX_ACTIVE_ROOMS - rooms.length),
-    maxPlayersPerRoom: MAX_ROOM_PLAYERS,
-    ttlSeconds: Math.round(ROOM_TTL_MS / 1000)
-  };
+  return { activeRooms: rooms.length, openRooms, fullRooms: rooms.filter((entry) => entry.answer).length, maxRooms: MAX_ACTIVE_ROOMS, codesLeft: Math.max(0, MAX_ACTIVE_ROOMS - rooms.length), maxPlayersPerRoom: MAX_ROOM_PLAYERS, ttlSeconds: Math.round(ROOM_TTL_MS / 1000) };
 }
 
 function readJson(req) {
