@@ -1,7 +1,9 @@
 (async function () {
   "use strict";
 
-  const GAME_URL = "src/game.js?v=14";
+  const GAME_URL = "src/game.js?v=15";
+
+  installShopScrollStyles();
 
   try {
     const response = await fetch(GAME_URL, { cache: "no-store" });
@@ -16,8 +18,6 @@
   }
 
   function patchGameSource(source) {
-    if (source.includes("front-building-shadow") && source.includes("requestPointerLockSafe")) return source;
-
     const replace = (from, to) => {
       if (source.includes(from)) source = source.replace(from, to);
     };
@@ -136,6 +136,8 @@
       `      const color = isHybrid ? [0.88, 0.66, 0.24] : isAmmo ? [0.18, 0.42, 0.58] : [0.22, 0.50, 0.28];`
     );
 
+    patchShopAndDeathBuying();
+
     if (!source.includes("function requestPointerLockSafe()")) {
       replace(
         `  function resetMatch() {`,
@@ -157,6 +159,128 @@
     }
 
     return source;
+
+    function patchShopAndDeathBuying() {
+      if (source.includes("roundPurchases")) return;
+
+      replace(
+        `    loadout: { ...DEFAULT_ROUND_LOADOUT },
+    playerScore: 0,`,
+        `    loadout: { ...DEFAULT_ROUND_LOADOUT },
+    roundPurchases: new Set(Object.values(DEFAULT_ROUND_LOADOUT)),
+    playerScore: 0,`
+      );
+
+      replace(
+        `        const active = state.loadout[category] === item.name;
+        const affordable = state.buyPhase && state.cash >= item.price;`,
+        `        const active = state.loadout[category] === item.name;
+        const owned = ownsLoadoutItem(item);
+        const affordable = state.buyPhase && (owned || state.cash >= item.price);`
+      );
+
+      replace(
+        `<em>\${active ? "EQUIPPED" : !state.buyPhase ? "ROUND LOCKED" : item.price === 0 ? "FREE" : \`$\${item.price}\`}</em>`,
+        `<em>\${active ? "EQUIPPED" : owned ? "OWNED" : !state.buyPhase ? "ROUND LOCKED" : item.price === 0 ? "FREE" : \`$\${item.price}\`}</em>`
+      );
+
+      replace(
+        `    if (state.loadout[category] !== item.name && item.price > 0) {
+      if (state.cash < item.price) {
+        addFeed("Buy Menu", \`$\${item.price - state.cash} short\`);
+        return;
+      }
+      state.cash -= item.price;
+    }
+
+    state.loadout[category] = item.name;`,
+        `    const alreadyOwned = ownsLoadoutItem(item);
+    if (!alreadyOwned && state.loadout[category] !== item.name && item.price > 0) {
+      if (state.cash < item.price) {
+        addFeed("Buy Menu", \`$\${item.price - state.cash} short\`);
+        return;
+      }
+      state.cash -= item.price;
+    }
+
+    state.roundPurchases.add(item.name);
+    state.loadout[category] = item.name;
+    if (!alreadyOwned && (category === "rifle" || category === "pistol")) {
+      resetWeaponAmmo(findWeaponIndex(item.name));
+    }`
+      );
+
+      replace(
+        `  function loadoutSummary() {`,
+        `  function ownsLoadoutItem(item) {
+    return item.price === 0 || state.roundPurchases.has(item.name);
+  }
+
+  function resetRoundPurchases() {
+    state.roundPurchases = new Set(Object.values(DEFAULT_ROUND_LOADOUT));
+  }
+
+  function loadoutSummary() {`
+      );
+
+      replace(
+        `    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
+    state.playerScore = 0;`,
+        `    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
+    resetRoundPurchases();
+    state.playerScore = 0;`
+      );
+
+      replace(
+        `  function dropLoadoutOnDeath() {
+    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
+    resetAllAmmo();`,
+        `  function dropLoadoutOnDeath() {
+    state.buyPhase = true;
+    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
+    resetRoundPurchases();
+    resetAllAmmo();`
+      );
+
+      replace(
+        `      addFeed("Loadout", "Dropped on respawn");
+      if (document.pointerLockElement === canvas) document.exitPointerLock();`,
+        `      addFeed("Loadout", "Dropped - buy during respawn");
+      if (document.pointerLockElement === canvas) document.exitPointerLock();
+      ui.menu.classList.remove("hidden");
+      showMenuView("loadout");
+      ui.startButton.textContent = "Respawn";`
+      );
+
+      replace(
+        `    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
+    state.playerScore = 0;`,
+        `    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
+    resetRoundPurchases();
+    state.playerScore = 0;`
+      );
+    }
+  }
+
+  function installShopScrollStyles() {
+    if (document.getElementById("shopScrollPatchStyles")) return;
+    const style = document.createElement("style");
+    style.id = "shopScrollPatchStyles";
+    style.textContent = `
+      .loadout-grid {
+        max-height: min(590px, calc(100vh - 292px));
+        overflow-y: auto;
+        padding-right: 4px;
+        align-content: start;
+        scrollbar-gutter: stable;
+      }
+      @media (max-width: 760px) {
+        .loadout-grid {
+          max-height: min(520px, calc(100vh - 300px));
+        }
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   function realisticRenderFunctions() {
