@@ -5,6 +5,7 @@
   "description": "Standalone WebGL campus arena prototype.",
   "scripts": {
     "dev": "node tools/server.js",
+    "start:rooms": "node server/index.js",
     "check": "node --check src/game.js"
   }
 }
