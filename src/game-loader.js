@@ -224,6 +224,26 @@
       );
 
       replace(
+        `  function loop(time) {`,
+        `  function resetAllAmmo() {
+    ammo.forEach((slot, index) => resetWeaponAmmo(index));
+  }
+
+  function resetWeaponAmmo(index) {
+    const weapon = weapons[index];
+    const slot = ammo[index];
+    if (!weapon || !slot) return;
+    slot.magazine = weapon.magazineSize;
+    slot.reserve = weapon.reserveSize;
+    slot.reloadRemaining = 0;
+    slot.reloadTotal = 0;
+    slot.fireTimer = 0;
+  }
+
+  function loop(time) {`
+      );
+
+      replace(
         `    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
     state.playerScore = 0;`,
         `    state.loadout = { ...DEFAULT_ROUND_LOADOUT };
@@ -246,6 +266,26 @@
         `      addFeed("Loadout", "Dropped on respawn");
       if (document.pointerLockElement === canvas) document.exitPointerLock();`,
         `      addFeed("Loadout", "Dropped - buy during respawn");
+      if (document.pointerLockElement === canvas) document.exitPointerLock();
+      ui.menu.classList.remove("hidden");
+      showMenuView("loadout");
+      ui.startButton.textContent = "Respawn";`
+      );
+
+      replace(
+        `      player.spree = 0;
+      addFeed(source, "You");
+      if (document.pointerLockElement === canvas) document.exitPointerLock();`,
+        `      player.spree = 0;
+      state.buyPhase = true;
+      state.loadout = { ...DEFAULT_ROUND_LOADOUT };
+      resetRoundPurchases();
+      resetAllAmmo();
+      switchSlot("rifle");
+      buildLoadoutPanel();
+      updateMenuSummary();
+      addFeed(source, "You");
+      addFeed("Loadout", "Dropped - buy during respawn");
       if (document.pointerLockElement === canvas) document.exitPointerLock();
       ui.menu.classList.remove("hidden");
       showMenuView("loadout");
