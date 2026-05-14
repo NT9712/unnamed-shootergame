@@ -70,6 +70,15 @@
     let publishInFlight = false;
     let joinToken = "";
     let serverStats = null;
+    const pageRoom = readPageRoom();
+
+    if (pageRoom) {
+      activeRoom = pageRoom;
+      preserveNextHostRoom = true;
+      if (ui.roomNameInput) ui.roomNameInput.value = pageRoom.name;
+      if (ui.remoteSignal) ui.remoteSignal.placeholder = `Click Join Room to enter ${pageRoom.id}, or paste a room code`;
+      addPeerNote(`${pageRoom.id} page loaded`);
+    }
 
     if (ui.quickPlayButton) {
       ui.quickPlayButton.addEventListener("click", async (event) => {
@@ -77,6 +86,13 @@
         event.stopImmediatePropagation();
         if (ui.remoteSignal.value.trim()) {
           ui.joinOfferButton.click();
+        } else if (pageRoom) {
+          const joined = await joinRoomId(pageRoom.id);
+          if (!joined) {
+            activeRoom = pageRoom;
+            preserveNextHostRoom = true;
+            ui.hostOfferButton.click();
+          }
         } else {
           const match = await findQuickRoom();
           if (match && match.offer) {
@@ -96,11 +112,8 @@
     }
 
     ui.hostOfferButton.addEventListener("click", () => {
-      if (preserveNextHostRoom && activeRoom) {
-        preserveNextHostRoom = false;
-      } else {
-        activeRoom = createRoom("custom");
-      }
+      if (preserveNextHostRoom && activeRoom) preserveNextHostRoom = false;
+      else activeRoom = createRoom("custom");
       lastPublishedCode = "";
       lastAppliedAnswer = "";
       joinToken = "";
@@ -109,17 +122,15 @@
     }, true);
 
     ui.joinOfferButton.addEventListener("click", async (event) => {
-      const roomId = readRoomId(ui.remoteSignal.value);
+      const roomId = readRoomId(ui.remoteSignal.value) || (pageRoom && !ui.remoteSignal.value.trim() ? pageRoom.id : "");
       if (roomId) {
         event.preventDefault();
         event.stopImmediatePropagation();
         await joinRoomId(roomId);
         return;
       }
-
       const signal = readFriendCode(ui.remoteSignal.value);
       if (!signal) return;
-
       if (signal.room) activeRoom = normalizeRoom(signal.room, signal.type === "offer" ? "quick" : "custom");
       ui.remoteSignal.value = JSON.stringify({ type: signal.type, sdp: signal.sdp }, null, 2);
       if (signal.type === "offer") startCompactor();
@@ -170,10 +181,7 @@
     }
 
     function updateStatusLabels() {
-      const replacements = {
-        "WAITING ANSWER": "SEND CODE",
-        "WAITING HOST": "SEND REPLY"
-      };
+      const replacements = { "WAITING ANSWER": "SEND CODE", "WAITING HOST": "SEND REPLY" };
       [ui.networkStatus, ui.homeNetworkStatus].forEach((element) => {
         if (!element) return;
         const current = element.textContent.trim().toUpperCase();
@@ -210,7 +218,6 @@
         addPeerNote("No code yet");
         return;
       }
-
       try {
         await navigator.clipboard.writeText(code);
         addPeerNote("Room code copied");
@@ -221,10 +228,11 @@
     }
 
     function createRoom(mode) {
+      const fixedRoom = pageRoom && mode !== "quick" ? pageRoom : null;
       return {
-        id: createRoomId(),
-        name: sanitizeRoomName(ui.roomNameInput && ui.roomNameInput.value),
-        mode: mode === "quick" ? "quick" : "custom"
+        id: fixedRoom ? fixedRoom.id : createRoomId(),
+        name: sanitizeRoomName(ui.roomNameInput && ui.roomNameInput.value || (fixedRoom && fixedRoom.name)),
+        mode: fixedRoom ? "custom" : mode === "quick" ? "quick" : "custom"
       };
     }
 
@@ -257,9 +265,8 @@
     async function joinRoomId(roomId) {
       if (!apiAvailable()) {
         addPeerNote("Paste a room code, not just the room ID");
-        return;
+        return false;
       }
-
       try {
         const data = await fetchRoomApi(`?room=${encodeURIComponent(roomId)}`);
         if (!data || !data.offer) throw new Error("Room not found");
@@ -270,8 +277,10 @@
         updateRoomUi();
         addPeerNote(`Joining ${activeRoom.id}`);
         ui.joinOfferButton.click();
+        return true;
       } catch (error) {
         addPeerNote(error && error.message ? error.message : "Could not join room");
+        return false;
       }
     }
 
@@ -282,16 +291,9 @@
       const signal = readFriendCode(code);
       if (!signal || (signal.type !== "offer" && signal.type !== "answer")) return;
       const roomCode = code.startsWith(ROOM_CODE_PREFIX) ? code : writeRoomCode(signal, activeRoom);
-
       try {
         publishInFlight = true;
-        const data = await postRoomApi({
-          action: signal.type,
-          room: activeRoom,
-          code: roomCode,
-          claimToken: joinToken,
-          host: sanitizeRoomName(ui.roomNameInput && ui.roomNameInput.value)
-        });
+        const data = await postRoomApi({ action: signal.type, room: activeRoom, code: roomCode, claimToken: joinToken, host: sanitizeRoomName(ui.roomNameInput && ui.roomNameInput.value) });
         if (data && data.room) {
           activeRoom = normalizeRoom(data.room, activeRoom.mode);
           ui.localSignal.value = writeRoomCode(signal, activeRoom);
@@ -302,9 +304,7 @@
         if (signal.type === "offer") {
           addPeerNote(`Room ${activeRoom.id} online`);
           startAnswerPolling();
-        } else {
-          addPeerNote(`Reply sent for ${activeRoom.id}`);
-        }
+        } else addPeerNote(`Reply sent for ${activeRoom.id}`);
       } catch (error) {
         addPeerNote(error && error.message ? error.message : "Manual code fallback active");
       } finally {
@@ -328,9 +328,7 @@
           addPeerNote("Reply received");
           ui.joinOfferButton.click();
           window.clearInterval(pollTimer);
-        } catch (error) {
-          // Poll failures are transient on serverless cold starts; the manual code remains visible.
-        }
+        } catch (error) {}
       }, API_POLL_MS);
     }
 
@@ -342,41 +340,28 @@
           serverStats = data.stats;
           updateRoomUi();
         }
-      } catch (error) {
-        // Capacity display is optional; connection codes still work without it.
-      }
+      } catch (error) {}
     }
   }
 
   function readFriendCode(value) {
     const clean = String(value || "").trim();
     if (!clean) return null;
-
     try {
       const parsed = clean.startsWith(CODE_PREFIX)
         ? JSON.parse(atob(padBase64(clean.slice(CODE_PREFIX.length).replace(/-/g, "+").replace(/_/g, "/"))))
         : clean.startsWith(ROOM_CODE_PREFIX)
           ? JSON.parse(atob(padBase64(clean.slice(ROOM_CODE_PREFIX.length).replace(/-/g, "+").replace(/_/g, "/"))))
-        : JSON.parse(clean);
+          : JSON.parse(clean);
       if (!parsed || !parsed.type || !parsed.sdp) return null;
-      return {
-        v: parsed.v || 1,
-        type: parsed.type,
-        sdp: parsed.sdp,
-        room: parsed.room || null
-      };
+      return { v: parsed.v || 1, type: parsed.type, sdp: parsed.sdp, room: parsed.room || null };
     } catch (error) {
       return null;
     }
   }
 
   function writeRoomCode(signal, room) {
-    return `${ROOM_CODE_PREFIX}${btoa(JSON.stringify({
-      v: 2,
-      type: signal.type,
-      sdp: signal.sdp,
-      room: normalizeRoom(room, "custom")
-    })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`;
+    return `${ROOM_CODE_PREFIX}${btoa(JSON.stringify({ v: 2, type: signal.type, sdp: signal.sdp, room: normalizeRoom(room, "custom") })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`;
   }
 
   function readRoomId(value) {
@@ -401,6 +386,15 @@
     return id;
   }
 
+  function readPageRoom() {
+    const path = window.location.pathname || "";
+    const match = path.match(/\/room(?:\/)?([1-9]|1[0-6])(?:\.html)?$/i);
+    if (!match) return null;
+    const number = Number(match[1]);
+    const id = `ROOM${String(number).padStart(2, "0")}`;
+    return { id, name: `Room ${number}`, mode: "custom" };
+  }
+
   function apiAvailable() {
     return (window.location.protocol === "http:" || window.location.protocol === "https:") && Boolean(ROOM_API);
   }
@@ -413,11 +407,7 @@
   }
 
   async function postRoomApi(payload) {
-    const response = await fetch(ROOM_API, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    const response = await fetch(ROOM_API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.ok === false) throw new Error(data.error || "Room API failed");
     return data;
@@ -430,26 +420,17 @@
   function installRtcConfigShim() {
     if (typeof RTCPeerConnection === "undefined" || RTCPeerConnection.__hssShim) return;
     const NativePeerConnection = RTCPeerConnection;
-
     function HssPeerConnection(config) {
       const peer = new NativePeerConnection(mergeRtcConfig(config));
       peer.addEventListener("icecandidateerror", (event) => {
-        window.dispatchEvent(new CustomEvent("hss-rtc-error", {
-          detail: {
-            url: event.url || "",
-            errorCode: event.errorCode || 0,
-            errorText: event.errorText || "ICE candidate error"
-          }
-        }));
+        window.dispatchEvent(new CustomEvent("hss-rtc-error", { detail: { url: event.url || "", errorCode: event.errorCode || 0, errorText: event.errorText || "ICE candidate error" } }));
       });
       return peer;
     }
-
     HssPeerConnection.prototype = NativePeerConnection.prototype;
     Object.setPrototypeOf(HssPeerConnection, NativePeerConnection);
     HssPeerConnection.__hssShim = true;
     window.RTCPeerConnection = HssPeerConnection;
-
     window.addEventListener("hss-rtc-error", (event) => {
       const detail = event.detail || {};
       const message = detail.errorText || `ICE error ${detail.errorCode || ""}`.trim();
@@ -472,11 +453,7 @@
       seen.add(key);
       iceServers.push(server);
     });
-    return {
-      ...base,
-      iceServers,
-      iceCandidatePoolSize: Math.max(Number(base.iceCandidatePoolSize) || 0, 4)
-    };
+    return { ...base, iceServers, iceCandidatePoolSize: Math.max(Number(base.iceCandidatePoolSize) || 0, 4) };
   }
 
   function resolveRoomApi() {
@@ -505,19 +482,11 @@
   function storeSignalServer(value) {
     try {
       window.localStorage.setItem("hss-room-api-url", value);
-    } catch (error) {
-      // Storage is optional; the query string still works for this session.
-    }
+    } catch (error) {}
   }
 
   function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, (char) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    })[char]);
+    return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
   }
 
   function injectRoomStyles() {
