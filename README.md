@@ -1,6 +1,6 @@
 # High School Simulator: American Edition
 
-A standalone WebGL campus-arena prototype with pointer-lock FPS controls, blue-vs-red bot teams, round scoring, a CS2-style buy phase, health/ammo/stamina HUD, minimap, hit markers, reloads, dash movement, heal/ammo pads, and arena AI. The theme is a fictional after-school foam-marker competition, not a realistic school violence simulator.
+A standalone WebGL campus-arena prototype with pointer-lock FPS controls, blue-vs-red bot teams, round scoring, a CS2-style buy phase, health/ammo/stamina HUD, minimap, hit markers, reloads, dash movement, heal/ammo pads, and arena AI. The map now uses a larger grounded campus layout with daylight, fog, procedural surface noise, academic wings, parking lots, buses, cars, sidewalks, field props, bleachers, fences, trees, glass entries, classrooms, lockers, cafeteria tables, and library cover. The theme is a fictional after-school foam-marker competition, not a realistic school violence simulator.
 
 ## Run Locally
 
@@ -69,7 +69,7 @@ After connection, the game syncs display name, position, aim direction, active i
 
 ## Current Mechanics
 
-Movement and combat now include reworked sprint stamina, crouching/sneaking, slides, aiming down sights, dash cooldown, utility cooldown, melee cooldown, damage dropoff, Eagle Marker and AWP Marker headshots, a Foam Flamethrower cone weapon, foam-knife backstabs, jump pads, speed lanes, teleport gates, heal/ammo pads, armor regeneration, spawn protection, kill streak callouts, and smarter team-based bot targeting. The map is now an open campus with sky, outdoor paths, courtyard cover, planters, and the original arena reworked as the main building with classrooms, lockers, cafeteria tables, a trophy case, bus cover, court markings, posters, banners, animated lights, floating name tags, and uniformed team characters.
+Movement and combat now include reworked sprint stamina, crouching/sneaking, slides, aiming down sights, dash cooldown, utility cooldown, melee cooldown, damage dropoff, Eagle Marker and AWP Marker headshots, a Foam Flamethrower cone weapon, foam-knife backstabs, jump pads, speed lanes, teleport gates, heal/ammo pads, armor regeneration, spawn protection, kill streak callouts, and smarter team-based bot targeting. The map is now a much larger realistic campus arena with a central gym/main building, academic wings, front and rear entrances, asphalt parking, bus loop, service yard, football field, running track, bleachers, fences, dumpsters, bike racks, windows, rooflines, shrubs, trees, lamps, classroom props, cafeteria tables, a trophy case, court markings, floating name tags, and uniformed team characters.
 
 Ten strong next mechanics to consider: wall-running, mantle/climb, zip-lines, weapon attachments, objective capture zones, class abilities, deployable shields, radar pings, match economy, and round-end MVP cards.
 
