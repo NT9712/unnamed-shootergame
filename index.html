@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>High School Simulator: American Edition</title>
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=3">
   </head>
   <body>
     <canvas id="gameCanvas" aria-label="High School Simulator American Edition arena"></canvas>
@@ -117,6 +117,22 @@
               <input id="playerNameInput" type="text" maxlength="18" spellcheck="false" value="Player">
             </label>
             <div class="connection-chip" id="homeNetworkStatus">OFFLINE</div>
+          </div>
+          <div class="auth-panel" id="authPanel">
+            <label class="auth-field" for="authUsername">
+              <span>Username</span>
+              <input id="authUsername" type="text" maxlength="18" autocomplete="username" spellcheck="false" placeholder="username">
+            </label>
+            <label class="auth-field" for="authPassword">
+              <span>Password</span>
+              <input id="authPassword" type="password" maxlength="32" autocomplete="current-password" placeholder="password">
+            </label>
+            <div class="auth-actions">
+              <button id="authLoginButton" class="secondary-button compact" type="button">Login</button>
+              <button id="authCreateButton" class="secondary-button compact" type="button">Create</button>
+              <button id="authLogoutButton" class="secondary-button compact danger" type="button">Logout</button>
+            </div>
+            <strong id="authStatus" class="auth-status">Guest locker</strong>
           </div>
           <div class="home-grid">
             <div class="home-card mode-card">
@@ -283,8 +299,10 @@
       <span id="roundBannerText">Resetting arena</span>
     </div>
 
-    <script src="src/skins.js?v=1"></script>
-    <script src="src/game-loader.js?v=4"></script>
-    <script src="src/peer-link.js?v=2"></script>
+    <script src="src/auth.js?v=1"></script>
+    <script src="src/skins.js?v=2"></script>
+    <script src="src/runtime-hotfix.js?v=1"></script>
+    <script src="src/game-loader.js?v=5"></script>
+    <script src="src/peer-link.js?v=3"></script>
   </body>
 </html>
