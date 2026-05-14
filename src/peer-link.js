@@ -3,7 +3,7 @@
 
   const CODE_PREFIX = "HSS1.";
   const ROOM_CODE_PREFIX = "HSSR.";
-  const ROOM_API = "/api/rooms";
+  const ROOM_API = resolveRoomApi();
   const API_POLL_MS = 1400;
   const DEFAULT_ICE_SERVERS = [
     {
@@ -141,7 +141,7 @@
 
     function startCompactor() {
       window.clearInterval(compactTimer);
-      const expiresAt = performance.now() + 4000;
+      const expiresAt = performance.now() + 18000;
       compactTimer = window.setInterval(() => {
         compactLocalCode();
         publishCurrentCode();
@@ -402,7 +402,7 @@
   }
 
   function apiAvailable() {
-    return window.location.protocol === "http:" || window.location.protocol === "https:";
+    return (window.location.protocol === "http:" || window.location.protocol === "https:") && Boolean(ROOM_API);
   }
 
   async function fetchRoomApi(query) {
@@ -477,6 +477,37 @@
       iceServers,
       iceCandidatePoolSize: Math.max(Number(base.iceCandidatePoolSize) || 0, 4)
     };
+  }
+
+  function resolveRoomApi() {
+    if (window.location.protocol !== "http:" && window.location.protocol !== "https:") return "";
+    const configured = readConfiguredSignalServer();
+    if (!configured) return "/api/rooms";
+    const clean = configured.replace(/\/+$/g, "");
+    if (/\/api\/rooms$/i.test(clean)) return clean;
+    return `${clean}/api/rooms`;
+  }
+
+  function readConfiguredSignalServer() {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("signal") || params.get("rooms");
+    if (fromUrl) {
+      storeSignalServer(fromUrl);
+      return fromUrl;
+    }
+    try {
+      return window.localStorage.getItem("hss-room-api-url") || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function storeSignalServer(value) {
+    try {
+      window.localStorage.setItem("hss-room-api-url", value);
+    } catch (error) {
+      // Storage is optional; the query string still works for this session.
+    }
   }
 
   function escapeHtml(value) {
