@@ -2,7 +2,7 @@
 
 This folder is a persistent room-signaling service for Online mode. Use it when Vercel serverless memory is too unreliable for room codes.
 
-Deploy the repo root to Railway, Render, Fly.io, or a VPS and use:
+Deploy the repo root to Railway, Render, Fly.io, Google Compute Engine, or another VPS and use:
 
 ```sh
 node server/index.js
@@ -25,3 +25,5 @@ https://your-vercel-app.vercel.app/?signal=https://your-room-server.example.com
 The client stores that URL in `localStorage` and keeps using it. Open with `?signal=/api/rooms` to switch back to the Vercel API.
 
 The frontend also supports fixed room pages such as `/room1.html`, which maps to `ROOM01`, through `/room16.html`, which maps to `ROOM16`.
+
+For Google Compute Engine, use `server/GCLOUD_VPS.md`. It includes the systemd service, Nginx reverse proxy, firewall notes, health checks, and VPS operations setup.
